@@ -554,7 +554,7 @@ table.data td.num, table.data th.num { text-align: right; }
 .vcard .meta { font-size: var(--fs-sm); color: var(--text-3); display: flex; justify-content: space-between; gap: var(--s2); font-variant-numeric: tabular-nums; }
 
 /* ================================================================ board */
-.board { display: grid; grid-template-columns: repeat(5, minmax(200px, 1fr)); gap: var(--s3); overflow-x: auto; padding-bottom: var(--s2); }
+.board { display: grid; grid-template-columns: repeat(5, minmax(180px, 1fr)); gap: var(--s3); overflow-x: auto; padding-bottom: var(--s2); }
 .col { background: var(--bg-sunken); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--s2); min-height: 420px; display: flex; flex-direction: column; gap: 6px; transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease); }
 .col.drop { border-color: var(--accent); background: var(--bg-selected); }
 .col-head { display: flex; align-items: center; gap: var(--s2); padding: var(--s1) var(--s1) 6px; }
@@ -736,6 +736,3 @@ details.howto a:hover { text-decoration: underline; }
 .section-title { font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-3); margin: var(--s4) 0 var(--s2); }
 .empty { text-align: center; padding: var(--s8) var(--s4); color: var(--text-3); }
 .tile .value { font: 600 var(--fs-num) / 1.3 var(--font-display); }
-.modal .foot, .dialog > .foot { display: flex; justify-content: flex-end; gap: var(--s2); padding: var(--s3) var(--s5); border-top: 1px solid var(--border-subtle); }
-.dialog > h3 { padding: var(--s5) var(--s5) 0; font-size: var(--fs-md); }
-.dialog > p, .dialog > label, .dialog > div:not(.foot), .dialog > table { margin: var(--s3) var(--s5) 0; }
