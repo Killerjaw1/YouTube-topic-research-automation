@@ -1,10 +1,11 @@
-/** Shared UI building blocks: app context, toasts, modal, tooltip, badges, inputs, loading states. */
+/** App context (theme, toasts, dialogs, detail panel, tooltip) and app-specific building blocks on top of the kit. */
 
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
-import type { Reason, Status, VideoRow } from "../../core/types";
+import type { Reason, Status as AppStatus, VideoRow } from "../../core/types";
 import { call, setNativeTheme } from "../api";
-import { fmt, hue, store, tone } from "../format";
+import { fmt, reportTone, store, tone } from "../format";
 import { Icon, type IconName } from "./Icon";
+import { Banner, Button, ChipGroup, EmptyState, Segmented, Status, Switch, Tag, Thumbnail, type Tone } from "./kit";
 
 // ------------------------------------------------------------------ routing
 export interface Route { page: string; id?: string; params: URLSearchParams }
@@ -32,13 +33,16 @@ export function applyTheme(p: ThemePref) {
 }
 
 // ------------------------------------------------------------------ context
-interface Toast { id: number; text: string; kind: "ok" | "err" | "info" }
+type ToastKind = "ok" | "err" | "info";
+interface Toast { id: number; title: string; body?: string; kind: ToastKind }
 interface AppCtx {
-  status: Status | null;
+  status: AppStatus | null;
   refresh(): Promise<void>;
-  toast(text: string, kind?: Toast["kind"], ms?: number): void;
-  fail(e: unknown): void;
+  /** Shows a toast with a tone dot, a title and an optional body. */
+  toast(title: string, kind?: ToastKind, body?: string): void;
+  fail(e: unknown, title?: string): void;
   modal(render: (close: () => void) => ReactNode, wide?: boolean): void;
+  panel: { node: ReactNode; open(node: ReactNode, key?: string): void; close(): void; key: string | null };
   tip: { show(content: ReactNode, e: { clientX: number; clientY: number }): void; move(e: { clientX: number; clientY: number }): void; hide(): void };
   theme: ThemePref;
   setTheme(p: ThemePref): void;
@@ -47,28 +51,34 @@ interface AppCtx {
 const Ctx = createContext<AppCtx>(null as unknown as AppCtx);
 export const useApp = () => useContext(Ctx);
 
+const TOAST_TONE: Record<ToastKind, Tone> = { ok: "ok", err: "danger", info: "accent" };
+
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [status, setStatus] = useState<Status | null>(null);
+  const [status, setStatus] = useState<AppStatus | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [modalState, setModal] = useState<{ render: (close: () => void) => ReactNode; wide?: boolean } | null>(null);
+  const [panelNode, setPanelNode] = useState<{ node: ReactNode; key: string | null } | null>(null);
   const [tipContent, setTipContent] = useState<ReactNode>(null);
   const [theme, setThemeState] = useState<ThemePref>(() => store<ThemePref>("theme-pref") ?? "system");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const tipRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const nextId = useRef(1);
 
   const refresh = useCallback(async () => {
     try { setStatus(await call("status")); } catch { /* engine not ready */ }
   }, []);
-  const toast = useCallback((text: string, kind: Toast["kind"] = "ok", ms = 4200) => {
+  const toast = useCallback((title: string, kind: ToastKind = "ok", body?: string) => {
     const id = nextId.current++;
-    setToasts((t) => [...t, { id, text, kind }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), ms);
+    setToasts((t) => [...t.slice(-3), { id, title, body, kind }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), kind === "err" ? 7000 : 4200);
   }, []);
-  const fail = useCallback((e: unknown) => toast((e as Error)?.message ?? String(e), "err", 7000), [toast]);
+  const fail = useCallback((e: unknown, title = "That didn’t work") => toast(title, "err", (e as Error)?.message ?? String(e)), [toast]);
   const closeModal = useCallback(() => setModal(null), []);
   const modal = useCallback((render: (close: () => void) => ReactNode, wide?: boolean) => setModal({ render, wide }), []);
   const setTheme = useCallback((p: ThemePref) => { setThemeState(p); applyTheme(p); }, []);
+  const openPanel = useCallback((node: ReactNode, key?: string) => setPanelNode({ node, key: key ?? null }), []);
+  const closePanel = useCallback(() => setPanelNode(null), []);
 
   const place = (e: { clientX: number; clientY: number }) => {
     const el = tipRef.current;
@@ -94,25 +104,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
     media.addEventListener("change", on);
     return () => media.removeEventListener("change", on);
   }, [theme]);
+  // The detail panel belongs to the page it was opened from.
   useEffect(() => {
-    if (!modalState) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeModal(); };
+    const onHash = () => setPanelNode(null);
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (modalState) closeModal();
+      else if (panelNode && !paletteOpen) closePanel();
+    };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [modalState, closeModal]);
+  }, [modalState, panelNode, paletteOpen, closeModal, closePanel]);
+  // Move focus into a dialog when it opens, and back where it was when it closes.
+  useEffect(() => {
+    if (!modalState) return;
+    const prev = document.activeElement as HTMLElement | null;
+    setTimeout(() => {
+      const el = dialogRef.current?.querySelector<HTMLElement>("[autofocus], input, textarea, select, .dialog-foot .primary, button");
+      el?.focus();
+    }, 0);
+    return () => prev?.focus?.();
+  }, [modalState]);
 
   return (
-    <Ctx.Provider value={{ status, refresh, toast, fail, modal, tip, theme, setTheme, palette: { open: paletteOpen, setOpen: setPaletteOpen } }}>
+    <Ctx.Provider value={{
+      status, refresh, toast, fail, modal, tip, theme, setTheme,
+      panel: { node: panelNode?.node ?? null, key: panelNode?.key ?? null, open: openPanel, close: closePanel },
+      palette: { open: paletteOpen, setOpen: setPaletteOpen },
+    }}>
       {children}
       <div className="toasts" role="status" aria-live="polite">
         {toasts.map((t) => (
-          <div key={t.id} className={`toast ${t.kind}`}><Icon name={t.kind === "err" ? "x" : t.kind === "info" ? "info" : "check"} /><div>{t.text}</div></div>
+          <div key={t.id} className="toast"><span className={`dot ${TOAST_TONE[t.kind]}`} /><div><b>{t.title}</b>{t.body && <span>{t.body}</span>}</div></div>
         ))}
       </div>
       <div ref={tipRef} className={`tooltip ${tipContent ? "" : "hidden"}`}>{tipContent}</div>
       {modalState && (
-        <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && closeModal()}>
-          <div className="modal" role="dialog" aria-modal="true" style={modalState.wide ? { width: "min(820px, 100%)" } : undefined}>
+        <div className="dialog-back" onMouseDown={(e) => e.target === e.currentTarget && closeModal()}>
+          <div ref={dialogRef} className={`dialog ${modalState.wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-labelledby="dialog-title">
             {modalState.render(closeModal)}
           </div>
         </div>
@@ -136,31 +169,31 @@ export function Kbd({ keys }: { keys: string }) {
 }
 
 export function ScorePill({ score, big }: { score: number | null | undefined; big?: boolean }) {
-  if (score == null) return <span className={`score-pill neutral ${big ? "lg" : ""}`}>–</span>;
-  return <span className={`score-pill ${tone(score)} ${big ? "lg" : ""}`}>{Math.round(score)}</span>;
+  return <span className={`score ${tone(score)} ${big ? "lg" : ""}`} aria-label={score == null ? "Not scored" : `Score ${Math.round(score)}`}>{score == null ? "–" : Math.round(score)}</span>;
 }
 
-const SIZE_LABEL = { small: "Small", mid: "Mid-size", big: "Large", unknown: "Hidden" } as const;
-const SIZE_COLOR = { small: "var(--s-small)", mid: "var(--s-mid)", big: "var(--s-big)", unknown: "var(--faint)" } as const;
+/** A verdict as status: a tone dot plus the verdict words. */
+export function Verdict({ tone: t, score, children }: { tone?: string; score?: number | null; children: ReactNode }) {
+  return <Status tone={t ? reportTone(t) : tone(score)}>{children}</Status>;
+}
+
+const SIZE = { small: ["Small", "var(--series-1)"], mid: ["Mid-size", "var(--series-2)"], big: ["Large", "var(--series-3)"], unknown: ["Hidden", "var(--idle)"] } as const;
+/** Channel size class; the swatch matches the scatter chart's series colour. */
 export function SizeBadge({ v }: { v: VideoRow }) {
-  const s = v.size ?? "unknown";
-  return <span className="size-tag"><i style={{ background: SIZE_COLOR[s] }} />{SIZE_LABEL[s]}</span>;
+  const [label, color] = SIZE[v.size ?? "unknown"];
+  return <span className="status"><span className="dot" style={{ background: color, borderRadius: 2 }} />{label}</span>;
 }
 
 export function FormatBadge({ format }: { format: string | null | undefined }) {
-  return format === "short"
-    ? <span className="badge short"><Icon name="phone" />Short</span>
-    : <span className="badge long"><Icon name="play" />Long</span>;
+  return <Tag>{format === "short" ? "Short" : format === "both" ? "Both" : "Long"}</Tag>;
 }
 
-export function Thumb({ v, className = "thumb" }: { v: { thumbnail?: string; title?: string; id?: string; channel_title?: string }; className?: string }) {
-  if (v.thumbnail) return <img className={className} src={v.thumbnail} alt="" loading="lazy" />;
-  const h = hue(v.title || v.id || "?");
-  const initials = (v.channel_title || "?").split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
-  return <div className={className} style={{ background: `linear-gradient(135deg,hsl(${h} 28% 30%),hsl(${(h + 30) % 360} 30% 20%))` }}>{initials}</div>;
+export function Thumb({ v, large }: { v: { thumbnail?: string; title?: string; id?: string; channel_title?: string; size?: string }; large?: boolean }) {
+  const cat = v.size === "small" ? "cat-3" : v.size === "big" ? "cat-2" : v.size === "mid" ? "cat-1" : undefined;
+  return <Thumbnail src={v.thumbnail} title={v.title || v.id} name={v.channel_title} category={cat} large={large} />;
 }
 
-/** Skeleton placeholder with a status line. `steps` cycle as a progress message. */
+/** Placeholder while something loads: a status line, a thin progress bar and skeleton rows. */
 export function Loading({ title, steps = [], rows = 4 }: { title: string; steps?: string[]; rows?: number }) {
   const [i, setI] = useState(0);
   useEffect(() => {
@@ -169,47 +202,39 @@ export function Loading({ title, steps = [], rows = 4 }: { title: string; steps?
     return () => clearTimeout(t);
   }, [i, steps.length]);
   return (
-    <div className="card loading-card" aria-busy="true">
-      <div className="msg"><div className="spinner" /><span>{steps.length ? steps[i] : title}</span></div>
-      <div className="progress-line indeterminate" style={{ marginBottom: 16 }}><i /></div>
-      <div className="stack" style={{ gap: 10 }}>
-        {Array.from({ length: rows }, (_, k) => <div key={k} className="skeleton" style={{ height: 14, width: `${92 - k * 13}%` }} />)}
+    <div className="card loading-card" aria-busy="true" aria-live="polite">
+      <div className="msg"><span className="spinner" /><span>{steps.length ? steps[i] : title}</span></div>
+      <div className="progress-line indeterminate mb"><i /></div>
+      <div className="stack tight">
+        {Array.from({ length: rows }, (_, k) => <div key={k} className="skeleton" style={{ height: 12, width: `${92 - k * 13}%` }} />)}
       </div>
     </div>
   );
 }
 
+/** Empty state: an icon, a title, one sentence and an optional action. */
 export function Empty({ icon, title, children, actions }: { icon: IconName; title: string; children?: ReactNode; actions?: ReactNode }) {
-  return (
-    <div className="card empty">
-      <Icon name={icon} /><b>{title}</b>
-      <div>{children}</div>
-      {actions && <div className="actions">{actions}</div>}
-    </div>
-  );
+  return <EmptyState icon={icon} title={title} action={actions}>{children}</EmptyState>;
 }
 
 export function DemoBanner() {
   const { status } = useApp();
   if (!status?.demo) return null;
   return (
-    <div className="banner">
-      <Icon name="info" />
-      <div className="grow">
-        <b>Sample data. </b>
-        {status.desktop ? "Results are simulated until you add a YouTube Data API key." : "This browser preview uses simulated data. Install the desktop app to research real topics."}
-      </div>
-      {status.desktop && <a className="btn xs" href="#/settings">Add API key</a>}
-    </div>
+    <Banner tone="warn" title="Showing sample data"
+      actions={status.desktop ? <Button size="sm" href="#/settings">Add API key</Button> : undefined}>
+      {status.desktop ? "Add a YouTube Data API key to research real topics." : "This browser preview runs on sample data. The desktop app researches real topics."}
+    </Banner>
   );
 }
 
-export function Reasons({ items }: { items: { type: Reason["type"]; text: string; fix?: string }[] }) {
+export function Reasons({ items }: { items: { type: Reason["type"] | "warn"; text: string; fix?: string }[] }) {
+  const icon: Record<string, IconName> = { good: "check", bad: "x", warn: "warn", info: "info" };
   return (
     <ul className="reasons">
       {items.map((x, i) => (
         <li key={i} className={x.type}>
-          <Icon name={x.type === "good" ? "check" : x.type === "bad" ? "x" : "info"} />
+          <Icon name={icon[x.type]} />
           <span>{x.text}{x.fix && <span className="fix">{x.fix}</span>}</span>
         </li>
       ))}
@@ -221,7 +246,7 @@ export function Checklist({ items }: { items: string[] }) {
   return <ol className="steps-list">{items.map((t) => <li key={t}><span>{t}</span></li>)}</ol>;
 }
 
-export function CopyButton({ text, what = "Copied", label, className = "btn xs ghost" }: { text: string | (() => string); what?: string; label?: string; className?: string }) {
+export function CopyButton({ text, what = "Copied", label, size = "sm" }: { text: string | (() => string); what?: string; label?: string; size?: "sm" }) {
   const { toast } = useApp();
   const copy = async () => {
     const value = typeof text === "function" ? text() : text;
@@ -231,39 +256,27 @@ export function CopyButton({ text, what = "Copied", label, className = "btn xs g
       try { document.execCommand("copy"); } catch { /* ignore */ }
       ta.remove();
     }
-    toast(`${what} to clipboard`);
+    toast(what);
   };
-  return <button type="button" className={className} onClick={copy} title="Copy to clipboard"><Icon name="copy" />{label}</button>;
+  return label
+    ? <Button size={size} icon="copy" onClick={copy}>{label}</Button>
+    : <Button size={size} variant="ghost" iconOnly icon="copy" label="Copy" onClick={copy} />;
 }
 
-export function Seg<T extends string | number>({ value, options, onChange }: { value: T; options: [NoInfer<T>, string][]; onChange(v: NoInfer<T>): void }) {
-  return (
-    <div className="seg" role="tablist">
-      {options.map(([v, l]) => <button key={String(v)} type="button" role="tab" aria-selected={v === value} className={v === value ? "on" : ""} onClick={() => onChange(v)}>{l}</button>)}
-    </div>
-  );
-}
-
-export function Chips<T extends string>({ value, options, onChange }: { value: T; options: [NoInfer<T>, string][]; onChange(v: NoInfer<T>): void }) {
-  return (
-    <div className="chips">
-      {options.map(([v, l]) => <button key={v} type="button" className={`chip ${v === value ? "on" : ""}`} onClick={() => onChange(v)}>{l}</button>)}
-    </div>
-  );
-}
+export const Seg = Segmented;
+export const Chips = ChipGroup;
 
 export function Toggle({ checked, onChange, children }: { checked: boolean; onChange(v: boolean): void; children: ReactNode }) {
   return (
     <label className="toggle">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      <span className="sw" />
+      <Switch checked={checked} onChange={onChange} label={typeof children === "string" ? children : "Toggle"} />
       <span>{children}</span>
     </label>
   );
 }
 
 export function Delta({ value, suffix = "" }: { value: number | null | undefined; suffix?: string }) {
-  if (value == null || !Number.isFinite(value) || value === 0) return <span className="delta muted">–</span>;
+  if (value == null || !Number.isFinite(value) || value === 0) return <span className="delta">–</span>;
   return <span className={`delta ${value > 0 ? "up" : "down"}`}>{value > 0 ? "+" : "−"}{Math.abs(Math.round(value))}{suffix}</span>;
 }
 
@@ -291,6 +304,7 @@ export function SearchBox({ value = "", onSubmit, placeholder = "Enter a topic o
     <form className="search-hero" autoComplete="off" role="search" onSubmit={(e) => { e.preventDefault(); submit(active >= 0 ? items[active] : q); }}>
       <Icon name="search" className="search-icon" />
       <input className="input" data-search value={q} placeholder={placeholder} maxLength={200} required autoFocus={autoFocus} aria-label="Topic"
+        aria-autocomplete="list" aria-expanded={open && items.length > 0}
         onChange={(e) => { setQ(e.target.value); setOpen(true); load(e.target.value); }}
         onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
         onKeyDown={(e) => {
@@ -299,11 +313,11 @@ export function SearchBox({ value = "", onSubmit, placeholder = "Enter a topic o
           else if (e.key === "ArrowUp") { setActive(Math.max(-1, active - 1)); e.preventDefault(); }
           else if (e.key === "Escape") setOpen(false);
         }} />
-      <button className="btn primary" type="submit">{button}</button>
+      <Button type="submit" variant="primary">{button}</Button>
       {open && items.length > 0 && (
         <div className="suggest-box" role="listbox">
           {items.map((s, i) => (
-            <button key={s} type="button" role="option" aria-selected={i === active} className={i === active ? "active" : ""}
+            <button key={s} type="button" role="option" aria-selected={i === active}
               onMouseDown={(e) => { e.preventDefault(); setQ(s); submit(s); }}><Icon name="search" />{s}</button>
           ))}
         </div>

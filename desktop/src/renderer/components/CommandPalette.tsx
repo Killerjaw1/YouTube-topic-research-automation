@@ -55,27 +55,27 @@ export function CommandPalette({ nav }: { nav: NavItem[] }) {
   return (
     <div className="palette-back" onMouseDown={(e) => e.target === e.currentTarget && palette.setOpen(false)}>
       <div className="palette" role="dialog" aria-label="Command palette">
-        <input ref={inputRef} value={q} placeholder="Type a topic to analyze, or search pages and reports" onChange={(e) => setQ(e.target.value)}
+        <input ref={inputRef} value={q} placeholder="Type a topic to analyze, or search pages and reports" aria-label="Search" onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Escape") palette.setOpen(false);
             else if (e.key === "ArrowDown") { setActive((a) => Math.min(items.length - 1, a + 1)); e.preventDefault(); }
             else if (e.key === "ArrowUp") { setActive((a) => Math.max(0, a - 1)); e.preventDefault(); }
             else if (e.key === "Enter") items[active]?.run();
           }} />
-        <div className="results">
+        <div className="results" role="listbox">
           {items.map((it, i) => {
-            const head = it.group !== lastGroup ? <div className="group">{it.group}</div> : null;
+            const head = it.group !== lastGroup ? <div className="label">{it.group}</div> : null;
             lastGroup = it.group;
             return (
               <div key={it.key}>
                 {head}
-                <button className={`item ${i === active ? "active" : ""}`} onMouseEnter={() => setActive(i)} onClick={it.run}>
+                <button className="item" role="option" aria-selected={i === active} onMouseEnter={() => setActive(i)} onClick={it.run}>
                   <Icon name={it.icon} /><span className="ellipsis">{it.label}</span>{it.hint && <span className="hint">{it.hint}</span>}
                 </button>
               </div>
             );
           })}
-          {!items.length && <div className="empty" style={{ padding: 20 }}>No matches</div>}
+          {!items.length && <div className="empty-state"><b>No matches</b><p>Try another word, or press Enter on a topic to analyze it.</p></div>}
         </div>
         <div className="foot"><span><kbd>↑</kbd> <kbd>↓</kbd> to move</span><span><kbd>Enter</kbd> to select</span><span><kbd>Esc</kbd> to close</span></div>
       </div>

@@ -9,7 +9,7 @@ import { fmt, fmtDur, TONE_COLOR } from "../format";
 export function useConnectAnalytics() {
   const { toast, fail, refresh } = useApp();
   return async (after?: () => void) => {
-    toast("Continue in your browser to sign in with Google.", "info", 9000);
+    toast("Continue in your browser", "info", "Sign in with Google there, then come back here.");
     try {
       const info = await connectAnalytics();
       toast(`YouTube Analytics connected${info?.title ? ` for ${info.title}` : ""}`);

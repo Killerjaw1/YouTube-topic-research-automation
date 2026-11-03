@@ -1,6 +1,5 @@
 /** Display formatting for the UI. */
 
-import type { Tone } from "../core/types";
 
 export function fmt(n: number | null | undefined, digits = 1): string {
   if (n === null || n === undefined || Number.isNaN(n)) return "–";
@@ -25,21 +24,34 @@ export function fmtDur(s: number | null | undefined): string {
   return (h ? `${h}:${String(m).padStart(2, "0")}` : String(m)) + ":" + String(sec).padStart(2, "0");
 }
 
+/** Relative time: "just now", "12 min ago", "2 h ago", "Yesterday 14:30", "Mon 09:10", "3 Oct". */
 export function ago(ts: number): string {
-  const s = Date.now() / 1000 - ts;
+  const d = new Date(ts * 1000), now = new Date();
+  const s = (now.getTime() - d.getTime()) / 1000;
+  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
   if (s < 60) return "just now";
   if (s < 3600) return Math.round(s / 60) + " min ago";
-  if (s < 86400) return Math.round(s / 3600) + " h ago";
-  if (s < 86400 * 30) return Math.round(s / 86400) + " d ago";
-  return new Date(ts * 1000).toLocaleDateString();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (d.getTime() >= startOfToday) return Math.round(s / 3600) + " h ago";
+  if (d.getTime() >= startOfToday - 86400000) return `Yesterday ${time}`;
+  if (s < 86400 * 6) return `${d.toLocaleDateString([], { weekday: "short" })} ${time}`;
+  return d.toLocaleDateString([], { day: "numeric", month: "short", ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) });
 }
 
-export function tone(score: number | null | undefined): Tone | "neutral" {
-  if (score == null) return "neutral";
-  return score >= 70 ? "great" : score >= 55 ? "good" : score >= 40 ? "warn" : "bad";
+export type UiTone = "ok" | "accent" | "warn" | "danger" | "idle";
+
+/** Score → UI tone. 70+ strong, 55-69 good, 40-54 needs an angle, below 40 weak. */
+export function tone(score: number | null | undefined): UiTone {
+  if (score == null) return "idle";
+  return score >= 70 ? "ok" : score >= 55 ? "accent" : score >= 40 ? "warn" : "danger";
 }
 
-export const TONE_COLOR: Record<string, string> = { great: "var(--great)", good: "var(--good)", warn: "var(--warn)", bad: "var(--bad)", neutral: "var(--muted)" };
+/** The engine's report tone ("great" | "good" | "warn" | "bad") → UI tone. */
+export function reportTone(t: string | undefined): UiTone {
+  return ({ great: "ok", good: "accent", warn: "warn", bad: "danger" } as Record<string, UiTone>)[t ?? ""] ?? "idle";
+}
+
+export const TONE_COLOR: Record<string, string> = { ok: "var(--ok)", accent: "var(--accent)", warn: "var(--warn)", danger: "var(--danger)", idle: "var(--idle)" };
 
 export function hue(str: string): number {
   let h = 0;

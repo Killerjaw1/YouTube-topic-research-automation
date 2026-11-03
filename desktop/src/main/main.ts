@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { Engine, ENGINE_METHODS, type EngineMethod } from "../core/engine";
 import { Store } from "../core/store";
+import { CHROME, TITLEBAR_HEIGHT } from "../shared/chrome";
 import { claude } from "./ai";
 import { signIn } from "./oauth";
 import { FilePersist, osCipher } from "./persist";
@@ -21,8 +22,8 @@ app.on("second-instance", () => {
 });
 
 const THEMES = {
-  dark: { color: "#141517", symbolColor: "#a1a1aa", bg: "#0d0e10" },
-  light: { color: "#ffffff", symbolColor: "#52525b", bg: "#f7f7f8" },
+  dark: { color: CHROME.dark.chrome, symbolColor: CHROME.dark.symbol, bg: CHROME.dark.app },
+  light: { color: CHROME.light.chrome, symbolColor: CHROME.light.symbol, bg: CHROME.light.app },
 };
 
 function isSafeExternal(url: string) {
@@ -62,7 +63,7 @@ function createWindow() {
     icon: path.join(__dirname, "../../build/icon.png"),
     show: false,
     // Custom title bar with the native Windows caption buttons drawn over it.
-    ...(IS_WIN ? { titleBarStyle: "hidden" as const, titleBarOverlay: { color: theme.color, symbolColor: theme.symbolColor, height: 40 } } : { autoHideMenuBar: true }),
+    ...(IS_WIN ? { titleBarStyle: "hidden" as const, titleBarOverlay: { color: theme.color, symbolColor: theme.symbolColor, height: TITLEBAR_HEIGHT } } : { autoHideMenuBar: true }),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -147,7 +148,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle("set-theme", (_e, theme: "dark" | "light") => {
     const t = THEMES[theme] ?? THEMES.dark;
-    if (IS_WIN && win) win.setTitleBarOverlay({ color: t.color, symbolColor: t.symbolColor, height: 40 });
+    if (IS_WIN && win) win.setTitleBarOverlay({ color: t.color, symbolColor: t.symbolColor, height: TITLEBAR_HEIGHT });
     win?.setBackgroundColor(t.bg);
     return { ok: true };
   });

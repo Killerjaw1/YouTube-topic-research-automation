@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { isWindows, type UpdateState, updates } from "./api";
 import { CommandPalette, type NavItem } from "./components/CommandPalette";
 import { Icon } from "./components/Icon";
+import { Button, Dialog, Status, type Tone } from "./components/kit";
 import { Onboarding } from "./components/Onboarding";
 import { Kbd, parseRoute, type Route, useApp } from "./components/ui";
 import { fmt } from "./format";
@@ -40,68 +41,62 @@ const SECTIONS: [string, NavItem[]][] = [
 const NAV = SECTIONS.flatMap(([, items]) => items);
 const SETTINGS: NavItem = { id: "settings", label: "Settings", icon: "gear", shortcut: "Ctrl ," };
 
-const PAGES: Record<string, (r: Route) => ReactNode> = {
-  dashboard: () => <Dashboard />,
-  analyze: (r) => <AnalyzePage route={r} />,
-  report: (r) => <ReportPage id={Number(r.id)} />,
-  discover: (r) => <DiscoverPage route={r} />,
-  outliers: (r) => <OutliersPage route={r} />,
-  trending: (r) => <TrendingPage route={r} />,
-  watchlist: () => <WatchlistPage />,
-  compare: (r) => <ComparePage route={r} />,
-  optimizer: (r) => <OptimizerPage route={r} />,
-  ideas: () => <IdeasPage />,
-  analytics: (r) => <AnalyticsPage route={r} />,
-  history: () => <HistoryPage />,
-  settings: () => <SettingsPage />,
+/** Page renderers. `narrow` pages (settings) use the 720px body; the rest use the wide body. */
+const PAGES: Record<string, { render(r: Route): ReactNode; narrow?: boolean }> = {
+  dashboard: { render: () => <Dashboard /> },
+  analyze: { render: (r) => <AnalyzePage route={r} /> },
+  report: { render: (r) => <ReportPage id={Number(r.id)} /> },
+  discover: { render: (r) => <DiscoverPage route={r} /> },
+  outliers: { render: (r) => <OutliersPage route={r} /> },
+  trending: { render: (r) => <TrendingPage route={r} /> },
+  watchlist: { render: () => <WatchlistPage /> },
+  compare: { render: (r) => <ComparePage route={r} /> },
+  optimizer: { render: (r) => <OptimizerPage route={r} /> },
+  ideas: { render: () => <IdeasPage /> },
+  analytics: { render: (r) => <AnalyticsPage route={r} /> },
+  history: { render: () => <HistoryPage /> },
+  settings: { render: () => <SettingsPage />, narrow: true },
 };
 
-function ShortcutsHelp() {
+export function ShortcutsDialog({ close }: { close(): void }) {
   const rows: [string, string][] = [
-    ["Ctrl K", "Command palette: analyze a topic or jump anywhere"],
-    ["/", "Focus the search box on the current page"],
+    ["Ctrl K", "Search, analyze a topic or jump to any page"],
+    ["/", "Move to the search box on this page"],
     ["Ctrl 1 – 9", "Go to a section"],
-    ["Ctrl ,", "Settings"],
-    ["Ctrl /", "Show keyboard shortcuts"],
-    ["Esc", "Close a dialog"],
+    ["Ctrl ,", "Open settings"],
+    ["Ctrl /", "Show these shortcuts"],
+    ["Esc", "Close a dialog or the details panel"],
   ];
   return (
-    <table className="data"><tbody>
-      {rows.map(([k, v]) => <tr key={k}><td style={{ width: 120 }}><Kbd keys={k} /></td><td className="t2">{v}</td></tr>)}
-    </tbody></table>
+    <Dialog title="Keyboard shortcuts" desc="Everything in NicheRadar works from the keyboard." footer={<Button variant="primary" onClick={close}>Done</Button>}>
+      <div className="list">
+        {rows.map(([k, v]) => <div key={k} className="list-row" style={{ padding: "8px 0" }}><span className="body t2">{v}</span><Kbd keys={k} /></div>)}
+      </div>
+    </Dialog>
   );
 }
 
-function StatusBar() {
-  const { status, modal } = useApp();
+/** One line of app status, shared by the title bar and the sidebar card. */
+function useAppStatus(): { tone: Tone; line: string; detail: string; upd: UpdateState } {
+  const { status } = useApp();
   const [upd, setUpd] = useState<UpdateState>({ state: "idle" });
   useEffect(() => {
     updates.state().then(setUpd).catch(() => undefined);
     return updates.onChange(setUpd);
   }, []);
-  if (!status) return <footer className="statusbar" />;
+  if (!status) return { tone: "idle", line: "Starting…", detail: "", upd };
   const left = Math.max(status.quota_limit - status.quota_used, 0);
-  return (
-    <footer className="statusbar">
-      <span className="item"><span className={`dot ${status.demo ? "demo" : "live"}`} />{status.demo ? "Sample data" : "Live YouTube data"}</span>
-      {!status.demo && <span className="item tabular">Quota {fmt(left)} of {fmt(status.quota_limit)} left today</span>}
-      {status.analytics_connected && <span className="item"><Icon name="chart" />Analytics connected</span>}
-      <span className="spacer" />
-      {upd.state === "downloading" && <span className="item">Downloading update {upd.percent ?? 0}%</span>}
-      {upd.state === "ready" && <button className="item" onClick={() => updates.install()}><Icon name="update" />Restart to update to {upd.version}</button>}
-      <button className="item" onClick={() => modal((close) => <><h3>Keyboard shortcuts</h3><ShortcutsHelp /><div className="foot"><button className="btn" onClick={close}>Close</button></div></>)}>
-        <Icon name="command" />Shortcuts
-      </button>
-      <span className="item">v{status.version}</span>
-    </footer>
-  );
+  if (status.demo) return { tone: "warn", line: "Sample data", detail: status.desktop ? "Add an API key to use live data" : "Browser preview", upd };
+  if (left === 0) return { tone: "danger", line: "Daily quota used", detail: "Resets at midnight Pacific time", upd };
+  return { tone: left < status.quota_limit * 0.15 ? "warn" : "ok", line: "Live YouTube data", detail: `${fmt(left)} of ${fmt(status.quota_limit)} quota left today`, upd };
 }
 
 export function App() {
-  const { status, palette, modal, refresh } = useApp();
+  const { status, palette, modal, refresh, panel } = useApp();
   const [route, setRoute] = useState(parseRoute);
   const [onboarding, setOnboarding] = useState<boolean | null>(null);
   const mainRef = useRef<HTMLDivElement>(null);
+  const app = useAppStatus();
 
   useEffect(() => {
     const onHash = () => { setRoute(parseRoute()); mainRef.current?.scrollTo(0, 0); };
@@ -114,20 +109,17 @@ export function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target as HTMLElement)?.tagName ?? "");
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); palette.setOpen(!palette.open); return; }
-      if ((e.ctrlKey || e.metaKey) && e.key === ",") { e.preventDefault(); location.hash = "#/settings"; return; }
-      if ((e.ctrlKey || e.metaKey) && e.key === "/") {
-        e.preventDefault();
-        modal((close) => <><h3>Keyboard shortcuts</h3><ShortcutsHelp /><div className="foot"><button className="btn" onClick={close}>Close</button></div></>);
-        return;
-      }
-      if ((e.ctrlKey || e.metaKey) && /^[1-9]$/.test(e.key)) {
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); palette.setOpen(!palette.open); return; }
+      if (mod && e.key === ",") { e.preventDefault(); location.hash = "#/settings"; return; }
+      if (mod && e.key === "/") { e.preventDefault(); modal((close) => <ShortcutsDialog close={close} />); return; }
+      if (mod && /^[1-9]$/.test(e.key)) {
         const target = NAV.find((n) => n.shortcut === `Ctrl ${e.key}`);
         if (target) { e.preventDefault(); location.hash = `#/${target.id}`; }
         return;
       }
       if (e.key === "/" && !typing) {
-        const el = document.querySelector<HTMLInputElement>("[data-search], .content input.input");
+        const el = document.querySelector<HTMLInputElement>("[data-search], .page input.input");
         if (el) { e.preventDefault(); el.focus(); }
       }
     };
@@ -140,60 +132,57 @@ export function App() {
   const label = [...NAV, SETTINGS].find((n) => n.id === active)?.label ?? "Overview";
   useEffect(() => { document.title = `${label} · NicheRadar`; }, [label]);
   const ch = status?.my_channel;
+  const count = (id: string) => (id === "ideas" ? status?.counts.ideas : id === "watchlist" ? status?.counts.tracked : id === "history" ? status?.counts.scans : undefined);
+  const navLink = (n: NavItem) => (
+    <a key={n.id} href={`#/${n.id}`} aria-current={active === n.id ? "page" : undefined} title={n.shortcut ? `${n.label} (${n.shortcut.replace(" ", "+")})` : n.label}>
+      <Icon name={n.icon} /><span>{n.label}</span>{count(n.id) ? <span className="count">{count(n.id)}</span> : null}
+    </a>
+  );
 
   return (
     <div className="shell">
       <header className={`titlebar ${isWindows ? "has-overlay" : ""}`}>
         <div className="brand"><img src="./logo.svg" alt="" /><span className="brand-name">NicheRadar</span></div>
         <div className="center">
-          <button className="palette-trigger" onClick={() => palette.setOpen(true)} aria-label="Open command palette">
-            <Icon name="search" /><span>Search or analyze a topic</span><Kbd keys="Ctrl K" />
+          <button className="search-trigger" onClick={() => palette.setOpen(true)} aria-label="Search or analyze a topic (Ctrl+K)">
+            <Icon name="search" size={14} /><span>Search or analyze a topic</span><Kbd keys="Ctrl K" />
           </button>
         </div>
         <div className="right">
-          <a className="btn ghost icon" href="#/settings" title="Settings (Ctrl+,)"><Icon name="gear" /></a>
+          {app.upd.state === "ready"
+            ? <Button size="sm" variant="primary" icon="update" onClick={() => updates.install()}>Restart to update</Button>
+            : <Status tone={app.tone}>{app.line}</Status>}
         </div>
       </header>
 
-      <div className="body">
+      <div className="frame">
         <aside className="sidebar">
           <nav className="nav" aria-label="Main">
-            {SECTIONS.map(([section, items]) => [
-              <div key={section} className="nav-label">{section}</div>,
-              ...items.map((n) => {
-                const count = n.id === "ideas" ? status?.counts.ideas : n.id === "watchlist" ? status?.counts.tracked : undefined;
-                return (
-                  <a key={n.id} href={`#/${n.id}`} className={active === n.id ? "active" : ""} aria-current={active === n.id ? "page" : undefined}>
-                    <Icon name={n.icon} /><span>{n.label}</span>
-                    {count ? <span className="count">{count}</span> : n.shortcut ? <span className="shortcut">{n.shortcut}</span> : null}
-                  </a>
-                );
-              }),
-            ])}
+            {SECTIONS.map(([section, items]) => [<div key={section} className="label">{section}</div>, ...items.map(navLink)])}
           </nav>
           <div className="sidebar-foot">
-            {status && !status.demo && (
-              <div className="side-card">
-                <div className="row-between"><span>API quota today</span><b className="tabular">{fmt(Math.max(status.quota_limit - status.quota_used, 0))}</b></div>
-                <div className="meter" style={{ marginTop: 8 }}><i style={{ width: `${Math.min(100, (status.quota_used / status.quota_limit) * 100)}%` }} /></div>
-                <small>Resets at midnight Pacific time</small>
-              </div>
-            )}
-            <a className="side-channel" href="#/settings">
-              <div className="avatar">{ch?.thumb ? <img src={ch.thumb} alt="" /> : <Icon name="user" />}</div>
-              <div className="meta">{ch ? <><b>{ch.title}</b><span>{fmt(ch.subs)} subscribers</span></> : <><b>Add your channel</b><span>Calibrates scores to your size</span></>}</div>
+            <a className="status-card" href="#/settings" title="Data source and quota">
+              <span className="line"><span className={`dot ${app.tone}`} />{app.line}</span>
+              {app.detail && <span className="secondary">{app.detail}</span>}
+              {status && !status.demo && <div className="meter"><i className={app.tone} style={{ width: `${Math.max(0, 100 - (status.quota_used / status.quota_limit) * 100)}%` }} /></div>}
             </a>
-            <div className="nav">
-              <a href="#/settings" className={active === "settings" ? "active" : ""}><Icon name="gear" /><span>Settings</span><span className="shortcut">Ctrl ,</span></a>
-            </div>
+            <a className="status-card" href="#/settings" title="Your channel">
+              <span className="line"><span className="avatar sm">{ch?.thumb ? <img src={ch.thumb} alt="" /> : <Icon name="user" size={12} />}</span>
+                <span className="ellipsis">{ch ? ch.title : "Add your channel"}</span></span>
+              <span className="secondary" style={{ paddingLeft: 32 }}>{ch ? `${fmt(ch.subs)} subscribers` : "Scores adapt to your size"}</span>
+            </a>
+            <nav className="nav">{navLink(SETTINGS)}</nav>
           </div>
         </aside>
-        <main className="main" ref={mainRef}>
-          <div className="content" key={location.hash}>{PAGES[page](route)}</div>
-        </main>
+
+        <div className="workspace">
+          <main className="main" ref={mainRef}>
+            <div className={`page ${PAGES[page].narrow ? "narrow" : ""}`} key={location.hash}>{PAGES[page].render(route)}</div>
+          </main>
+          {panel.node}
+        </div>
       </div>
 
-      <StatusBar />
       <CommandPalette nav={[...NAV, SETTINGS]} />
       {onboarding && <Onboarding onDone={() => { setOnboarding(false); refresh(); }} />}
     </div>

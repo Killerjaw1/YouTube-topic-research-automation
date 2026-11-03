@@ -306,13 +306,13 @@ function Playbook({ rep }: { rep: Report }) {
         <textarea className="input mono" style={{ width: "100%", minHeight: 320, fontSize: 12 }} value={desc} onChange={(e) => setDesc(e.target.value)} spellCheck={false} />
         <div className="row between" style={{ marginTop: 10 }}>
           <span className="small muted">Replace the bracketed text and adjust chapter times to your edit.</span>
-          <CopyButton className="btn sm" text={() => desc} what="Description copied" label="Copy" />
+          <CopyButton text={() => desc} what="Description copied" label="Copy" />
         </div>
       </>}
       {tab === "tags" && <>
-        <div className="row between"><span className="small t2">Tags · {pb.tags_chars} of 500 characters</span><CopyButton className="btn xs" text={pb.tags.join(", ")} what="Tags copied" label="Copy tags" /></div>
+        <div className="row between"><span className="small t2">Tags · {pb.tags_chars} of 500 characters</span><CopyButton text={pb.tags.join(", ")} what="Tags copied" label="Copy tags" /></div>
         <div className="chips" style={{ margin: "8px 0 18px" }}>{pb.tags.map((x) => <span key={x} className="chip">{x}</span>)}</div>
-        <div className="row between"><span className="small t2">Hashtags · shown above the title, add at the end of the description</span><CopyButton className="btn xs" text={pb.hashtags.join(" ")} what="Hashtags copied" label="Copy hashtags" /></div>
+        <div className="row between"><span className="small t2">Hashtags · shown above the title, add at the end of the description</span><CopyButton text={pb.hashtags.join(" ")} what="Hashtags copied" label="Copy hashtags" /></div>
         <div className="chips" style={{ marginTop: 8 }}>{pb.hashtags.map((x) => <span key={x} className="chip">{x}</span>)}</div>
       </>}
       {tab === "ctr" && <Checklist items={pb.checklist.ctr} />}
@@ -339,12 +339,12 @@ export function MetadataBlock({ md, plan }: { md?: AIMetadata; plan?: RetentionP
           <ol className="steps-list">{md.thumbnail_concepts.map((x) => <li key={x}><span>{x}</span></li>)}</ol>
           <div className="section-title">Tags</div>
           <div className="chips" style={{ marginBottom: 8 }}>{md.tags.map((x) => <span key={x} className="chip">{x}</span>)}{md.hashtags.map((x) => <span key={x} className="chip">{x}</span>)}</div>
-          <CopyButton className="btn xs" text={md.tags.join(", ")} what="Tags copied" label="Copy tags" />
+          <CopyButton text={md.tags.join(", ")} what="Tags copied" label="Copy tags" />
           <div className="section-title">Pinned comment</div>
           <div className="small t2">{md.pinned_comment}</div>
         </div>
         <div>
-          <div className="row between"><div className="section-title" style={{ marginTop: 0 }}>Description</div><CopyButton className="btn xs" text={() => desc} what="Description copied" label="Copy" /></div>
+          <div className="row between"><div className="section-title" style={{ marginTop: 0 }}>Description</div><CopyButton text={() => desc} what="Description copied" label="Copy" /></div>
           <textarea className="input mono" style={{ width: "100%", minHeight: 300, fontSize: 12 }} value={desc} onChange={(e) => setDesc(e.target.value)} spellCheck={false} />
         </div>
       </div>
