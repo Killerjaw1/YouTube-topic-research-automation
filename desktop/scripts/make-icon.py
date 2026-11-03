@@ -6,7 +6,7 @@ S = 1024
 u = S / 32  # logo.svg uses a 32-unit grid
 img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
 d = ImageDraw.Draw(img)
-d.rounded_rectangle((0, 0, S - 1, S - 1), radius=int(8 * u), fill=(79, 109, 245, 255))
+d.rounded_rectangle((0, 0, S - 1, S - 1), radius=int(8 * u), fill=(59, 110, 240, 255))
 w = int(2.4 * u)
 
 def arc(r, alpha):
