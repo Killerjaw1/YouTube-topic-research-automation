@@ -95,11 +95,12 @@ export function App() {
   const { status, palette, modal, refresh, panel } = useApp();
   const [route, setRoute] = useState(parseRoute);
   const [onboarding, setOnboarding] = useState<boolean | null>(null);
+  const [navOpen, setNavOpen] = useState(false);
   const mainRef = useRef<HTMLDivElement>(null);
   const app = useAppStatus();
 
   useEffect(() => {
-    const onHash = () => { setRoute(parseRoute()); mainRef.current?.scrollTo(0, 0); };
+    const onHash = () => { setRoute(parseRoute()); setNavOpen(false); mainRef.current?.scrollTo(0, 0); };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -142,7 +143,10 @@ export function App() {
   return (
     <div className="shell">
       <header className={`titlebar ${isWindows ? "has-overlay" : ""}`}>
-        <div className="brand"><img src="./logo.svg" alt="" /><span className="brand-name">NicheRadar</span></div>
+        <div className="brand">
+          <span className="nav-toggle"><Button iconOnly icon={navOpen ? "close" : "menu"} label={navOpen ? "Close navigation" : "Open navigation"} variant="ghost" size="sm" onClick={() => setNavOpen(!navOpen)} aria-expanded={navOpen} /></span>
+          <img src="./logo.svg" alt="" /><span className="brand-name">NicheRadar</span>
+        </div>
         <div className="center">
           <button className="search-trigger" onClick={() => palette.setOpen(true)} aria-label="Search or analyze a topic (Ctrl+K)">
             <Icon name="search" size={14} /><span>Search or analyze a topic</span><Kbd keys="Ctrl K" />
@@ -156,7 +160,8 @@ export function App() {
       </header>
 
       <div className="frame">
-        <aside className="sidebar">
+        <div className={`scrim ${navOpen ? "open" : ""}`} onClick={() => setNavOpen(false)} />
+        <aside className={`sidebar ${navOpen ? "open" : ""}`}>
           <nav className="nav" aria-label="Main">
             {SECTIONS.map(([section, items]) => [<div key={section} className="label">{section}</div>, ...items.map(navLink)])}
           </nav>

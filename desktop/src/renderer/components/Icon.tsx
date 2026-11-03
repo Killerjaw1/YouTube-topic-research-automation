@@ -4,7 +4,7 @@ import {
   ArrowCircleDown, ArrowLeft, ArrowRight, ArrowSquareOut, ArrowsClockwise, BookmarkSimple, CaretDown, CaretRight, ChartBar, CheckCircle,
   ClockCounterClockwise, Columns, Command, Compass, Copy, DeviceMobile, DotsThree, DownloadSimple, Eye, EyeSlash, FileText, Fire, FolderOpen,
   GearSix, House, Info, Kanban, Key, Lightning, Link, MagicWand, MagnifyingGlass, Moon, Play, Plus, RedditLogo, RocketLaunch, SlidersHorizontal,
-  Star, Sun, Target, Trash, TrendUp, User, Warning, WarningCircle, X, XCircle,
+  List, Star, Sun, Target, Trash, TrendUp, User, Warning, WarningCircle, X, XCircle,
   type Icon as PhosphorIcon,
 } from "@phosphor-icons/react";
 
@@ -15,7 +15,7 @@ const ICONS = {
   phone: DeviceMobile, reddit: RedditLogo, refresh: ArrowsClockwise, key: Key, target: Target, chart: ChartBar, wand: MagicWand, copy: Copy,
   link: Link, folder: FolderOpen, eye: Eye, eyeOff: EyeSlash, file: FileText, columns: Columns, trend: TrendUp, command: Command,
   arrowRight: ArrowRight, arrowLeft: ArrowLeft, chevronDown: CaretDown, chevronRight: CaretRight, more: DotsThree, update: ArrowCircleDown,
-  sliders: SlidersHorizontal, star: Star,
+  sliders: SlidersHorizontal, star: Star, menu: List,
 } satisfies Record<string, PhosphorIcon>;
 
 export type IconName = keyof typeof ICONS;
