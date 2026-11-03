@@ -88,7 +88,7 @@ async function main() {
     const r = analyze("budget gaming pc", rows, settings);
     assert.ok(r.score <= 45, `score ${r.score}`);
     assert.equal(r.metrics.big_in_top10, 10);
-    assert.ok(r.reasons.some((x) => x.type === "bad" && x.text.includes("Big channels")));
+    assert.ok(r.reasons.some((x) => x.type === "bad" && x.text.includes("Large channels")));
   });
   await test("A topic where small channels break out scores high", () => {
     const rows = rowsFrom(Array.from({ length: 20 }, (_, i) => raw("s" + i, { views: 60000 + i * 1000, subs: 3000 + i * 100, ageDays: 20 + i, title: `I tried sourdough ${i}` })));
@@ -175,6 +175,21 @@ async function main() {
     assert.match(engine.ideasCsv().text, /Test idea/);
     engine.deleteIdea(idea.id);
     assert.equal(engine.listIdeas().ideas.length, 0);
+  });
+  await test("Watchlist: track from a report, re-score, history and untrack", async () => {
+    const r1 = await engine.analyze("Indoor Plants", "quick");
+    const t = engine.track("Indoor Plants", r1.scan_id);
+    assert.equal(t.keyword, "indoor plants");
+    assert.equal(t.history.length, 1, "seeded from the report");
+    engine.track("indoor plants", r1.scan_id);
+    assert.equal(engine.listTracked().length, 1, "no duplicates");
+    const after = await engine.refreshTracked("indoor plants");
+    assert.equal(after?.history.length, 2, "re-score appends a point");
+    await engine.analyze("indoor plants");
+    assert.equal(engine.listTracked()[0].history.length, 3, "any analysis of a tracked topic is recorded");
+    assert.equal(engine.status().counts.tracked, 1);
+    engine.untrack("INDOOR PLANTS");
+    assert.equal(engine.listTracked().length, 0);
   });
   await test("Scans: list, CSV, delete", () => {
     const scans = engine.listScans();

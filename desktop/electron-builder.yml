@@ -10,6 +10,10 @@ files:
   - package.json
   - "!**/*.map"
 asar: true
+publish:
+  provider: github
+  owner: Killerjaw1
+  repo: YouTube-topic-research-automation
 win:
   target:
     - target: nsis

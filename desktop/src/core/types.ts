@@ -31,6 +31,8 @@ export interface Settings {
   my_channel: MyChannel | null;
   google_client_id: string;
   analytics_channel: { id: string; title: string; thumb: string; subs: number } | null;
+  auto_update: boolean;
+  onboarded: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -46,6 +48,8 @@ export const DEFAULT_SETTINGS: Settings = {
   my_channel: null,
   google_client_id: "",
   analytics_channel: null,
+  auto_update: true,
+  onboarded: false,
 };
 
 /** Values kept apart from settings and encrypted at rest in the desktop app. */
@@ -209,6 +213,14 @@ export interface Idea {
   updated: number;
 }
 
+export interface TrackPoint { t: number; score: number; verdict: string; scan_id: number; demo: boolean }
+
+export interface Tracked {
+  keyword: string;
+  added: number;
+  history: TrackPoint[];
+}
+
 export interface Candidate {
   keyword: string;
   source: string;
@@ -245,7 +257,8 @@ export interface Status {
   language: string;
   my_channel: MyChannel | null;
   small_max: number;
-  counts: { scans: number; ideas: number };
+  counts: { scans: number; ideas: number; tracked: number };
+  onboarded: boolean;
 }
 
 /** Settings as shown to the UI: secrets replaced by masked hints. */

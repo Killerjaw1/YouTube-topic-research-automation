@@ -10,7 +10,7 @@ export function VideoTable({ videos, showRank = false, filter }: { videos: Video
   const [dir, setDir] = useState(showRank ? 1 : -1);
   const cols: [Key, string, string][] = [
     ...(showRank ? [["rank", "#", "num"] as [Key, string, string]] : []),
-    ["title", "Video", ""], ["subs", "Channel subs", "num"], ["views", "Views", "num"], ["vpd", "Views/day", "num"],
+    ["title", "Video", ""], ["subs", "Subscribers", "num"], ["views", "Views", "num"], ["vpd", "Views/day", "num"],
     ["outlier", "Views ÷ subs", "num"], ["age_days", "Age", "num"], ["format", "Format", ""],
   ];
   const list = useMemo(() => videos.filter(filter ?? (() => true)).sort((a, b) => {

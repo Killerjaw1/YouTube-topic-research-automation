@@ -1,32 +1,39 @@
 ﻿# NicheRadar
 
-Find YouTube topics a small channel can actually win, then upload them right. A Windows desktop app that checks
-a video idea against what's ranking on YouTube **before** you film it: who owns the topic, whether small channels
-break through, whether there's demand, and which format works. Then it gives you the titles, description, tags and
-watch-time plan to upload with.
+A Windows desktop app for YouTube topic research. NicheRadar checks a video idea against what currently ranks on
+YouTube **before** you film it: how much demand there is, whether smaller channels break through, how much of the
+search large channels hold, and which format performs better. It then gives you the titles, description, tags and
+retention plan to publish with.
 
-YouTube tends to recommend the established channel when a small channel makes the same broad video. NicheRadar's
-job is to find the topics and angles where it won't.
+Large channels tend to be recommended over small ones for the same broad video. NicheRadar is built to find the
+topics and angles where that isn't the case.
 
-No accounts and no NicheRadar servers. Your keys and data stay on your PC.
+No accounts and no NicheRadar servers. Your keys and data stay on your computer.
 
 ![Topic report](docs/screenshots/report.png)
 
-| | What it does |
-|---|---|
-| **Analyze topic** | A 0-100 Opportunity Score from four signals: demand, small-channel breakouts, how much big channels own the top results, and freshness / content gaps. Includes a verdict, the reasons, the best format (Shorts or long-form), a "who wins this search" chart and the full results table. |
-| **Upload playbook** | For every topic: suggested titles, the title patterns winners use, a description template with chapters, tags (under the 500-character limit), 3 hashtags, a target video length, and checklists for click-through, watch time, Shorts and metadata. |
-| **Upload optimizer** | Paste your draft title, description and tags to get a score with specific fixes, compared against what wins for that topic. |
-| **Discover ideas** | Mines YouTube search suggestions (A-Z, questions, modifiers) around a niche for free, then scores the ones you pick in one go. Also turns hot Reddit threads into topics. |
-| **Outlier finder** | Videos from small channels that got many times their subscriber count in the last week, month, quarter or year. |
-| **Trending** | YouTube's trending chart by country and category, with small-channel videos and recurring themes highlighted. |
-| **My analytics** | Connect YouTube Analytics (read-only) for views, watch time, average % viewed, thumbnail CTR, traffic sources, and each video's **retention curve**, with tips drawn from your own numbers. |
-| **AI assistant** (optional) | With an Anthropic API key, Claude turns a report into 5 differentiated angles, ready-to-paste metadata, thumbnail concepts, a pinned comment and a retention plan with a hook script. It can also critique and rewrite your draft. |
-| **Idea board** | A drag-and-drop pipeline: Ideas → Researching → Scripting → Filming → Uploaded, with CSV export. |
+## Features
 
-| Upload playbook | Retention curve from YouTube Analytics |
+| | |
 |---|---|
-| ![Upload playbook](docs/screenshots/playbook.png) | ![Retention](docs/screenshots/retention.png) |
+| **Analyze topic** | A 0-100 opportunity score from demand, small-channel breakouts, large-channel dominance and freshness, with findings, a format recommendation, a channel-size vs. views chart and the full results table. Export as CSV or PDF. |
+| **Upload playbook** | Titles, title patterns, a description template with chapters, tags within YouTube's 500-character limit, hashtags, target length, and click-through, watch-time, Shorts and metadata checklists, all derived from the videos that rank for the topic. |
+| **Upload optimizer** | Scores a draft title, description and tags with specific fixes, using topic benchmarks when the keyword has been analyzed. |
+| **Watchlist** | Track topics and re-score them over time, with trend lines and score changes. |
+| **Compare** | Up to four analyses side by side. |
+| **Discover ideas** | Mines YouTube search suggestions (A–Z, questions, modifiers) around a niche at no quota cost, then batch-scores the phrases you select. Also turns popular Reddit threads into topics. |
+| **Outliers** | Recent small-channel videos that earned many times their subscriber count. |
+| **Trending** | YouTube's trending chart by country and category, with small-channel videos highlighted. |
+| **Analytics** | Connect YouTube Analytics (read-only) for views, watch time, average percentage viewed, click-through rate, traffic sources and per-video audience retention, with insights from your own numbers. |
+| **AI assistant** (optional) | With an Anthropic API key, Claude proposes differentiated angles, ready-to-use metadata, thumbnail concepts and a retention plan, and can review a draft. |
+| **Idea board** | A drag-and-drop production pipeline with CSV export. |
+
+Also included: a command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>), keyboard shortcuts for every section, first-run setup,
+system/light/dark themes, automatic updates, and a status bar showing data source and remaining quota.
+
+| Upload playbook | Compare topics |
+|---|---|
+| ![Upload playbook](docs/screenshots/playbook.png) | ![Compare](docs/screenshots/compare.png) |
 
 ## Install
 
@@ -35,8 +42,8 @@ No accounts and no NicheRadar servers. Your keys and data stay on your PC.
 version is tagged. It isn't code-signed, so SmartScreen may say "Windows protected your PC". Click
 *More info → Run anyway*.
 
-Want to look around first? NicheRadar opens in **demo mode** with made-up data until you add a key, so every screen
-works out of the box.
+On first launch a short setup asks for a YouTube Data API key and your channel. You can skip it and explore with
+sample data; every screen works without a key.
 
 ## First-time setup
 
@@ -67,18 +74,32 @@ between your PC and Google:
 5. Click **Connect YouTube Analytics**. Your browser opens Google sign-in. Pick the account that owns your channel
    and allow read-only access. The browser then says *Connected!* and NicheRadar shows your stats.
 
+## Keyboard shortcuts
+
+| Shortcut | Action |
+|---|---|
+| <kbd>Ctrl</kbd>+<kbd>K</kbd> | Command palette: analyze a topic, jump to a page or reopen a report |
+| <kbd>/</kbd> | Focus the search box |
+| <kbd>Ctrl</kbd>+<kbd>1</kbd>–<kbd>9</kbd> | Go to a section |
+| <kbd>Ctrl</kbd>+<kbd>,</kbd> | Settings |
+| <kbd>Ctrl</kbd>+<kbd>/</kbd> | Show all shortcuts |
+
 ## How it works
 
 - **What a score means.** The full method is in [docs/SCORING.md](docs/SCORING.md). In short: a topic scores
-  high when people are watching it, small channels already rank or break out in it, big channels don't own the
+  high when people are watching it, small channels already rank or break out in it, large channels don't hold the
   top results, and YouTube surfaces new uploads (or the top videos are old). Guard rails keep a topic nobody
   watches from scoring well just because nobody competes.
 - **Quota.** A quick scan costs about 102 of your 10,000 daily units; a deep scan (adds the most-viewed uploads of
   the last 90 days) about 204. Trending costs about 2. Finding ideas from search suggestions and Reddit costs
   nothing. The sidebar shows what's left today; quota resets at midnight Pacific time. Results are cached for 12
   hours, and reopening a saved report from History is free.
-- **History.** Every report and outlier search is saved, including the AI angles. Reopen, re-run or export it as
-  CSV any time.
+- **History.** Every report and outlier search is saved, including AI suggestions. Reopen, re-run, compare or export
+  any of them.
+- **Watchlist.** Re-scoring a tracked topic runs a standard scan and records the score, so you can see whether an
+  opportunity is opening up or closing.
+- **Updates.** The installed app checks GitHub Releases at startup (can be turned off in Settings), downloads new
+  versions in the background and installs them when you restart.
 - **Shorts.** YouTube doesn't say which videos are Shorts, so NicheRadar counts videos of 60 seconds or less, or
   up to 3 minutes tagged #shorts.
 - **Thumbnail CTR.** Shown when the YouTube Analytics API provides it for your channel; otherwise check YouTube
@@ -102,7 +123,8 @@ between your PC and Google:
 desktop/                Electron + React + TypeScript Windows app
   src/core/             engine shared by the app and the browser demo: scoring, playbook, YouTube client,
                         analytics, idea sources, storage, demo data
-  src/main/             Electron main process: window, IPC, encrypted storage, Google sign-in, Claude
+  src/main/             Electron main process: window, IPC, encrypted storage, Google sign-in, PDF export,
+                        updates, Claude
   src/renderer/         React UI (pages, charts, components)
   scripts/              dev server, build, selftest, icon generator
 docs/                   How scoring works
@@ -129,7 +151,7 @@ Python with Pillow).
 
 | Command | What it checks |
 |---|---|
-| `npm run selftest` (in `desktop/`) | End-to-end checks of the engine on demo and synthetic data: duration and Shorts parsing, breakout detection, scores for big-channel-owned, breakout and no-demand topics, content gaps, the auto small-channel threshold, the upload playbook, the draft checker, every engine operation in demo mode, ideas and history, secrets never reaching the UI, encrypted disk storage with cache expiry and the quota ledger, analytics and retention insights, and the OAuth PKCE request |
+| `npm run selftest` (in `desktop/`) | End-to-end checks of the engine on demo and synthetic data: duration and Shorts parsing, breakout detection, scores for big-channel-owned, breakout and no-demand topics, content gaps, the auto small-channel threshold, the upload playbook, the draft checker, every engine operation in demo mode, the watchlist, ideas and history, secrets never reaching the UI, encrypted disk storage with cache expiry and the quota ledger, analytics and retention insights, and the OAuth PKCE request |
 | `npm run typecheck` (in `desktop/`) | TypeScript across the engine, main process, UI and tests |
 
 CI runs both on every push and builds the Windows installer.

@@ -3,7 +3,7 @@ import { type Idea, IDEA_STATUSES } from "../../core/types";
 import { call, saveFile } from "../api";
 import { Icon } from "../components/Icon";
 import { ideaModal, STATUS_META } from "../components/IdeaModal";
-import { FormatBadge, ScorePill, useApp } from "../components/ui";
+import { FormatBadge, PageHead, ScorePill, useApp } from "../components/ui";
 import { ago } from "../format";
 
 export function IdeasPage() {
@@ -24,13 +24,10 @@ export function IdeasPage() {
 
   return (
     <>
-      <div className="row" style={{ marginBottom: 16, justifyContent: "space-between" }}>
-        <p className="page-intro" style={{ margin: 0 }}>Drag cards between stages as you go from idea to upload.</p>
-        <div className="row">
-          <button className="btn sm" onClick={exportCsv}><Icon name="download" />Export CSV</button>
-          <button className="btn sm primary" onClick={() => ideaModal(modal, { status: "idea" }, reload)}><Icon name="plus" />New idea</button>
-        </div>
-      </div>
+      <PageHead title="Idea board" desc="Move ideas through production by dragging cards between stages.">
+        <button className="btn sm" onClick={exportCsv}><Icon name="download" />Export CSV</button>
+        <button className="btn sm primary" onClick={() => ideaModal(modal, { status: "idea" }, reload)}><Icon name="plus" />New idea</button>
+      </PageHead>
       <div className="board">
         {IDEA_STATUSES.map((st) => {
           const items = ideas.filter((i) => i.status === st);
@@ -50,7 +47,7 @@ export function IdeasPage() {
                   <div className="small muted">{ago(i.updated)}</div>
                 </div>
               ))}
-              {!items.length && <div className="small muted" style={{ padding: "6px 4px" }}>Drop ideas here</div>}
+              {!items.length && <div className="small muted" style={{ padding: "6px 4px" }}>No ideas</div>}
             </div>
           );
         })}

@@ -3,18 +3,18 @@ import type { Candidate, RedditPost, Report } from "../../core/types";
 import { call } from "../api";
 import { Icon } from "../components/Icon";
 import { ideaModal } from "../components/IdeaModal";
-import { analyzeLink, DemoBanner, Empty, FormatBadge, go, Loading, type Route, ScorePill, useApp } from "../components/ui";
+import { analyzeLink, DemoBanner, Empty, FormatBadge, go, Loading, PageHead, type Route, ScorePill, useApp } from "../components/ui";
 import { fmt, store } from "../format";
 
 export function DiscoverPage({ route }: { route: Route }) {
   const tab = route.params.get("tab") ?? "youtube";
   return (
     <>
+      <PageHead title="Discover ideas" desc="Find specific search phrases around a niche, then score the promising ones. Finding ideas uses no quota; scoring uses ≈102 units each." />
       <DemoBanner />
-      <p className="page-intro">Start from a broad niche and let NicheRadar mine what people actually search for. Finding candidates is free; scoring them uses quota (~102 units each).</p>
       <div className="tabs">
-        <button className={tab === "youtube" ? "on" : ""} onClick={() => go("#/discover?tab=youtube")}>YouTube searches</button>
-        <button className={tab === "reddit" ? "on" : ""} onClick={() => go("#/discover?tab=reddit")}>Reddit conversations</button>
+        <button className={tab === "youtube" ? "on" : ""} onClick={() => go("#/discover?tab=youtube")}>YouTube search suggestions</button>
+        <button className={tab === "reddit" ? "on" : ""} onClick={() => go("#/discover?tab=reddit")}>Reddit</button>
       </div>
       {tab === "reddit" ? <RedditTab /> : <YouTubeTab seed={route.params.get("seed") ?? ""} />}
     </>
@@ -67,7 +67,7 @@ function YouTubeTab({ seed: initial }: { seed: string }) {
     }
     setProgress(null);
     setSortByScore(true);
-    toast(`Scored ${done} topic${done === 1 ? "" : "s"}. Sorted best first.`);
+    toast(`Scored ${done} phrase${done === 1 ? "" : "s"}, sorted by score`);
   };
 
   const list = rows ? (sortByScore ? [...rows].sort((a, b) => (b.result?.score ?? -1) - (a.result?.score ?? -1)) : rows) : [];
@@ -81,26 +81,26 @@ function YouTubeTab({ seed: initial }: { seed: string }) {
           <input className="input" style={{ flex: 1, minWidth: 240 }} required value={seed} onChange={(e) => setSeed(e.target.value)}
             placeholder="Your niche, e.g. 'home workout', 'retro gaming', 'personal finance'" />
           <select className="select" value={mode} onChange={(e) => setMode(e.target.value as any)}>
-            <option value="full">Everything (≈41 probes)</option><option value="alphabet">A–Z expansions</option><option value="questions">Questions only</option>
+            <option value="full">All suggestions</option><option value="alphabet">A–Z expansions</option><option value="questions">Questions only</option>
           </select>
-          <button className="btn primary"><Icon name="compass" />Find ideas</button>
+          <button className="btn primary">Find ideas</button>
         </form>
       </div>
-      {state.loading && <Loading title="Mining YouTube search suggestions…" />}
-      {state.error && <Empty icon="x" title="Couldn't fetch ideas">{state.error}</Empty>}
+      {state.loading && <Loading title="Collecting search suggestions" rows={6} />}
+      {state.error && <Empty icon="x" title="Suggestions couldn't be loaded">{state.error}</Empty>}
       {rows && !state.loading && (rows.length ? (
         <div className="card">
           <div className="card-head">
-            <div><h3>{rows.length} search ideas</h3><p className="sub">Bars show how often a phrase came up across probes, a rough popularity signal. Pick the promising ones and score them.</p></div>
+            <div><h3>{rows.length} search phrases</h3><p className="sub">Popularity shows how often a phrase appeared across suggestion lookups. Select phrases to score them.</p></div>
             <div className="row">
               <button className="btn sm ghost" onClick={() => setRows(rows.map((r) => ({ ...r, sel: false })))}>Clear</button>
               <button className="btn sm ghost" onClick={() => setRows(rows.map((r, i) => ({ ...r, sel: i < 10 })))}>Top 10</button>
-              <button className="btn sm primary" disabled={!pending.length || Boolean(progress)} onClick={() => score(pending)}><Icon name="target" />Score {pending.length} · ~{pending.length * 102} units</button>
+              <button className="btn sm primary" disabled={!pending.length || Boolean(progress)} onClick={() => score(pending)}>Score {pending.length} selected</button>
             </div>
           </div>
           {progress && (
             <div className="row" style={{ marginBottom: 12 }}>
-              <div className="progress" style={{ flex: 1 }}><i style={{ width: `${(progress.done / progress.total) * 100}%` }} /></div>
+              <div className="progress-line" style={{ flex: 1 }}><i style={{ width: `${(progress.done / progress.total) * 100}%` }} /></div>
               <span className="small muted">{progress.done} / {progress.total}</span>
               <button className="btn sm" onClick={() => { cancel.current = true; }}>Stop</button>
             </div>
@@ -109,7 +109,7 @@ function YouTubeTab({ seed: initial }: { seed: string }) {
             <table className="data">
               <thead><tr><th style={{ width: 36 }} /><th>Search phrase</th><th>Source</th><th>Popularity</th>
                 <th className="sortable num" onClick={() => setSortByScore(!sortByScore)}>Score {sortByScore ? "▼" : ""}</th><th>Verdict</th>
-                <th className="num">Small in top 10</th><th className="num">Big in top 10</th><th>Format</th><th /></tr></thead>
+                <th className="num">Small in top 10</th><th className="num">Large in top 10</th><th>Format</th><th /></tr></thead>
               <tbody>{list.map((r) => {
                 const res = r.result;
                 return (
@@ -118,7 +118,7 @@ function YouTubeTab({ seed: initial }: { seed: string }) {
                     <td><b>{r.keyword}</b></td>
                     <td><span className="badge neutral">{r.source}</span></td>
                     <td><span className="hits">{Array.from({ length: 5 }, (_, k) => <i key={k} className={k < Math.ceil((r.hits / maxHits) * 5) ? "on" : ""} />)}</span></td>
-                    <td className="num">{res ? <ScorePill score={res.score} /> : r.loading ? <div className="spinner" style={{ width: 18, height: 18, borderWidth: 2, display: "inline-block" }} />
+                    <td className="num">{res ? <ScorePill score={res.score} /> : r.loading ? <div className="spinner" style={{ display: "inline-block" }} />
                       : r.error ? <span className="badge bad">error</span> : <span className="muted">–</span>}</td>
                     <td className="small">{res ? res.verdict : r.error ? <span className="muted">{r.error}</span> : ""}</td>
                     <td className="num">{res ? String(res.metrics.small_in_top10) : ""}</td>
@@ -156,7 +156,7 @@ function RedditTab() {
   return (
     <>
       <div className="card" style={{ marginBottom: 16 }}>
-        <p className="sub" style={{ marginTop: 0 }}>Communities show what people are curious about, often before it trends on YouTube. Turn hot threads into video topics. No YouTube quota used.</p>
+        <p className="sub" style={{ marginTop: 0 }}>Popular threads show what an audience is asking about, often before it trends on YouTube. Uses no quota.</p>
         <form className="row" autoComplete="off" onSubmit={(e) => { e.preventDefault(); load(); }}>
           <div className="row" style={{ flex: 1, minWidth: 240, gap: 0 }}>
             <span className="input" style={{ display: "grid", placeItems: "center", borderRadius: "10px 0 0 10px", borderRight: 0, color: "var(--muted)" }}>r/</span>
@@ -165,20 +165,20 @@ function RedditTab() {
           <select className="select" value={period} onChange={(e) => setPeriod(e.target.value)}>
             <option value="week">Top this week</option><option value="day">Today</option><option value="month">This month</option><option value="year">This year</option>
           </select>
-          <button className="btn primary"><Icon name="reddit" />Get threads</button>
+          <button className="btn primary">Load threads</button>
         </form>
       </div>
-      {state.loading && <Loading title="Reading Reddit…" />}
+      {state.loading && <Loading title="Loading threads" rows={6} />}
       {state.error && <Empty icon="x" title="Couldn't load Reddit">{state.error}</Empty>}
       {state.posts && (
-        <div className="card"><h3>{state.posts.length} threads</h3><p className="sub">Click “Analyze” to edit the thread into a search phrase and score it.</p>
+        <div className="card"><h3>{state.posts.length} threads</h3><p className="sub">Choose Analyze to turn a thread into a search phrase and score it.</p>
           <div className="list">
             {state.posts.map((p, i) => (
               <div key={i} className="list-row">
                 <div style={{ width: 70 }} className="right"><b>{fmt(p.score)}</b><div className="small muted">upvotes</div></div>
                 <div className="grow"><div style={{ fontWeight: 600 }}>{p.title}</div><div className="small muted">{fmt(p.comments)} comments {p.flair && "· " + p.flair}</div></div>
                 {p.url && <a className="btn sm ghost" href={p.url} target="_blank" rel="noopener"><Icon name="external" /></a>}
-                <button className="btn sm" onClick={() => toTopic(p.title)}><Icon name="target" />Analyze</button>
+                <button className="btn xs" onClick={() => toTopic(p.title)}>Analyze</button>
               </div>
             ))}
             {!state.posts.length && <div className="empty">No posts found.</div>}
@@ -194,10 +194,10 @@ function ThreadToTopic({ title, close }: { title: string; close(): void }) {
   const goAnalyze = () => { close(); if (kw.trim()) go(analyzeLink(kw.trim())); };
   return (
     <>
-      <h3>Turn this thread into a search</h3>
-      <p className="small muted" style={{ margin: 0 }}>Viewers search in short phrases. Trim the thread title to what someone would type into YouTube.</p>
+      <h3>Analyze thread as a topic</h3>
+      <p className="small muted" style={{ margin: 0 }}>Viewers search in short phrases. Shorten the thread title to what someone would type into YouTube.</p>
       <label className="field">Search phrase<input className="input" autoFocus value={kw} onChange={(e) => setKw(e.target.value)} onKeyDown={(e) => e.key === "Enter" && goAnalyze()} /></label>
-      <div className="foot"><button className="btn ghost" onClick={close}>Cancel</button><button className="btn primary" onClick={goAnalyze}><Icon name="target" />Analyze</button></div>
+      <div className="foot"><button className="btn ghost" onClick={close}>Cancel</button><button className="btn primary" onClick={goAnalyze}>Analyze</button></div>
     </>
   );
 }

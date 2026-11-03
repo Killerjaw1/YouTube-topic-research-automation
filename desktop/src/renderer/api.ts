@@ -16,11 +16,27 @@ interface Bridge {
   saveFile(filename: string, text: string): Promise<{ ok: boolean; data?: string | null }>;
   openExternal(url: string): Promise<unknown>;
   openDataFolder(): Promise<unknown>;
+  exportPdf(filename: string): Promise<{ ok: boolean; data?: string | null }>;
+  setTheme(theme: "dark" | "light"): Promise<unknown>;
+  appInfo(): Promise<{ ok: boolean; data: { version: string; platform: string; packaged: boolean } }>;
+  updates: {
+    state(): Promise<{ ok: boolean; data: UpdateState }>;
+    check(): Promise<{ ok: boolean; data: UpdateState }>;
+    install(): Promise<unknown>;
+    onChange(cb: (s: UpdateState) => void): () => void;
+  };
   platform: string;
 }
 
+export type UpdateState =
+  | { state: "idle" | "checking" | "none" | "unsupported" }
+  | { state: "available" | "downloading"; version?: string; percent?: number }
+  | { state: "ready"; version: string }
+  | { state: "error"; message: string };
+
 const bridge: Bridge | undefined = (window as any).nicheradar;
 export const isDesktop = Boolean(bridge);
+export const isWindows = bridge?.platform === "win32";
 
 class LocalStoragePersist implements Persist {
   location = "this browser (demo)";
@@ -82,6 +98,30 @@ export function openExternal(url: string) {
 
 export function openDataFolder() {
   bridge?.openDataFolder();
+}
+
+/** Saves the current view as a PDF in the desktop app; opens the print dialog in the browser. */
+export async function exportPdf(filename: string): Promise<string | null> {
+  if (bridge) return (await bridge.exportPdf(filename)).data ?? null;
+  window.print();
+  return null;
+}
+
+export function setNativeTheme(theme: "dark" | "light") {
+  bridge?.setTheme(theme);
+}
+
+export const updates = {
+  supported: Boolean(bridge),
+  async state(): Promise<UpdateState> { return bridge ? (await bridge.updates.state()).data : { state: "unsupported" }; },
+  async check(): Promise<UpdateState> { return bridge ? (await bridge.updates.check()).data : { state: "unsupported" }; },
+  install() { bridge?.updates.install(); },
+  onChange(cb: (s: UpdateState) => void) { return bridge ? bridge.updates.onChange(cb) : () => undefined; },
+};
+
+export async function appVersion(): Promise<string> {
+  if (!bridge) return "web preview";
+  try { return (await bridge.appInfo()).data.version; } catch { return ""; }
 }
 
 export const webDemo = typeof __WEB_DEMO__ !== "undefined" && __WEB_DEMO__;

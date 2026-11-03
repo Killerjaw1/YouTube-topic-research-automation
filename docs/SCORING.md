@@ -1,7 +1,7 @@
 # How NicheRadar scores a topic
 
 NicheRadar answers one question: **if a small channel uploads on this topic, will YouTube show the video to
-people, or hand the traffic to the big channels?** It searches YouTube the way a viewer would, then looks at who
+people, or hand the traffic to the large channels?** It searches YouTube the way a viewer would, then looks at who
 ranks today, how big those channels are, and how their videos perform compared with their size.
 
 All of this lives in [`desktop/src/core/scoring.ts`](../desktop/src/core/scoring.ts) and is covered by
@@ -21,7 +21,7 @@ so reopening or re-running a topic the same day costs nothing.
 
 - **Small channel**: under 50K subscribers by default. With *Auto-size* on and your channel connected, it's 25×
   your subscriber count, kept between 10K and 250K. A 2K-subscriber channel competes with channels up to 50K.
-- **Big channel**: 1M+ subscribers (configurable).
+- **Large channel**: 1M+ subscribers (configurable).
 - **Views ÷ subs**: a video's views divided by its channel's subscribers. Above 1 means the video reached people
   who don't follow the channel.
 - **× channel average**: a video's views divided by the channel's average views per video (total channel views ÷
@@ -37,17 +37,17 @@ so reopening or re-running a topic the same day costs nothing.
 |---|---|---|
 | **Demand** | 30% | Median views/day of the top 20 results (or of recent uploads, if higher). 10/day scores 0, 100/day 25, 1K/day 50, 10K/day 75, 100K/day 100. |
 | **Breakout** | 30% | 7 points per small channel in the top 10, 6 per breakout video (up to 6), plus 8 if a small-channel video got 10× its subscribers. |
-| **Openness** | 25% | 100 minus rank-weighted big-channel dominance of the top 10 (rank 1 counts most; mid-size channels count a bit under half), minus up to 15 when most top titles repeat the exact phrase. |
+| **Openness** | 25% | 100 minus rank-weighted large-channel dominance of the top 10 (rank 1 counts most; mid-size channels count a little under half), minus up to 15 when most top titles repeat the exact phrase. |
 | **Freshness** | 15% | Share of the top 20 published within 180 days. A **content gap** (strong demand, under 30% fresh, top 10 mostly over a year old) scores at least 70: an up-to-date video can win. |
 
 **Guard rails:** demand under 15 caps the score at 38 (no competition doesn't help if nobody watches), and a top 10
-with 8+ big channels, no small channels and no breakouts caps it at 45.
+with 8+ large channels, no small channels and no breakouts caps it at 45.
 
 | Score | Verdict |
 |---|---|
 | 70-100 | Strong opportunity |
 | 55-69 | Good with the right angle |
-| 40-54 | Risky - needs a unique angle |
+| 40-54 | Needs a distinct angle |
 | 0-39 | Saturated or low demand |
 
 ## Best format
@@ -67,7 +67,7 @@ Built from the reference set: the top 10 results plus every small-channel breako
 - **Hashtags**: three at most (YouTube shows up to 3 above the title).
 - **Target length**: the middle half (25th-75th percentile) of the winning long-form videos' durations.
 - **Checklists** for click-through, watch time, Shorts and metadata, with topic-specific lines added (for
-  example, when big channels own the broad title or there's a content gap).
+  example, when large channels hold the broad title or there's a content gap).
 
 ## Draft checker
 

@@ -1,50 +1,69 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ScanMeta } from "../../core/types";
 import { call, saveFile } from "../api";
 import { Icon } from "../components/Icon";
-import { Empty, ScorePill, Seg, useApp } from "../components/ui";
+import { Empty, go, PageHead, ScorePill, Seg, useApp } from "../components/ui";
 import { ago } from "../format";
 
 export function HistoryPage() {
   const { refresh, fail, toast } = useApp();
   const [scans, setScans] = useState<ScanMeta[]>([]);
   const [kind, setKind] = useState<"all" | "analyze" | "outliers">("all");
+  const [q, setQ] = useState("");
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   useEffect(() => { call("listScans").then(setScans).catch(fail); }, [fail]);
-  const list = scans.filter((s) => kind === "all" || s.kind === kind);
-  const del = async (id: number) => {
-    try { await call("deleteScan", id); setScans(scans.filter((s) => s.id !== id)); refresh(); } catch (e) { fail(e); }
+  const list = useMemo(() => scans.filter((s) => (kind === "all" || s.kind === kind) && (!q || s.query.toLowerCase().includes(q.toLowerCase()))), [scans, kind, q]);
+
+  const del = async (ids: number[]) => {
+    try {
+      for (const id of ids) await call("deleteScan", id);
+      setScans(scans.filter((s) => !ids.includes(s.id)));
+      setSelected(new Set());
+      refresh();
+      toast(ids.length > 1 ? `Deleted ${ids.length} reports` : "Report deleted");
+    } catch (e) { fail(e); }
   };
-  const exportCsv = async (id: number) => { try { const p = await saveFile(await call("scanCsv", id)); if (p) toast("Saved " + p); } catch (e) { fail(e); } };
+  const exportCsv = async (id: number) => { try { const p = await saveFile(await call("scanCsv", id)); if (p) toast(`Saved ${p}`); } catch (e) { fail(e); } };
+  const toggle = (id: number, on: boolean) => { const s = new Set(selected); if (on) s.add(id); else s.delete(id); setSelected(s); };
+  const comparable = [...selected].filter((id) => scans.find((s) => s.id === id)?.kind === "analyze");
 
   return (
     <>
-      <div className="row" style={{ marginBottom: 16, justifyContent: "space-between" }}>
+      <PageHead title="History" desc="Every analysis and outlier search is saved locally. Reopening a report uses no quota.">
+        {comparable.length >= 2 && <button className="btn sm" onClick={() => go(`#/compare?ids=${comparable.slice(0, 4).join(",")}`)}><Icon name="columns" />Compare {Math.min(comparable.length, 4)}</button>}
+        {selected.size > 0 && <button className="btn sm danger" onClick={() => del([...selected])}><Icon name="trash" />Delete {selected.size}</button>}
+      </PageHead>
+      <div className="row between" style={{ marginBottom: 12 }}>
         <Seg value={kind} onChange={setKind} options={[["all", "All"], ["analyze", "Topic reports"], ["outliers", "Outlier searches"]]} />
-        <span className="small muted">Reopening a saved report costs no quota.</span>
+        <input className="input" style={{ width: 260 }} placeholder="Filter by topic" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       {list.length ? (
-        <div className="card" style={{ padding: 0 }}>
-          <div className="table-wrap" style={{ border: 0 }}>
+        <div className="card flush">
+          <div className="table-wrap bare">
             <table className="data">
-              <thead><tr><th>Score</th><th>Query</th><th>Type</th><th>Result</th><th>When</th><th /></tr></thead>
+              <thead><tr>
+                <th style={{ width: 32 }}><input type="checkbox" aria-label="Select all" checked={list.length > 0 && list.every((s) => selected.has(s.id))}
+                  onChange={(e) => setSelected(e.target.checked ? new Set(list.map((s) => s.id)) : new Set())} /></th>
+                <th style={{ width: 56 }}>Score</th><th>Topic</th><th>Type</th><th>Result</th><th className="num">Date</th><th />
+              </tr></thead>
               <tbody>{list.map((s) => (
-                <tr key={s.id}>
-                  <td>{s.kind === "analyze" && <ScorePill score={s.score} />}</td>
-                  <td><a href={`#/report/${s.id}`}><b>{s.query}</b></a> {s.demo && <span className="badge demo">demo</span>}</td>
-                  <td><span className="badge neutral">{s.kind === "analyze" ? "Topic report" : "Outliers"}</span></td>
-                  <td className="small t2">{s.verdict}</td>
-                  <td className="small muted nowrap">{ago(s.created)}</td>
+                <tr key={s.id} className={selected.has(s.id) ? "selected" : ""}>
+                  <td><input type="checkbox" aria-label={`Select ${s.query}`} checked={selected.has(s.id)} onChange={(e) => toggle(s.id, e.target.checked)} /></td>
+                  <td>{s.kind === "analyze" ? <ScorePill score={s.score} /> : <span className="muted">–</span>}</td>
+                  <td><a href={`#/report/${s.id}`} style={{ fontWeight: 500 }}>{s.query}</a>{s.demo && <span className="badge demo" style={{ marginLeft: 8 }}>Sample</span>}</td>
+                  <td className="t2">{s.kind === "analyze" ? "Topic report" : "Outlier search"}</td>
+                  <td className="t2">{s.verdict}</td>
+                  <td className="num muted nowrap" title={new Date(s.created * 1000).toLocaleString()}>{ago(s.created)}</td>
                   <td className="right nowrap">
-                    <a className="btn sm ghost" href={`#/report/${s.id}`}>Open</a>
-                    {s.kind === "analyze" && <button className="btn sm ghost" title="Export CSV" onClick={() => exportCsv(s.id)}><Icon name="download" /></button>}
-                    <button className="btn sm ghost danger" title="Delete" onClick={() => del(s.id)}><Icon name="trash" /></button>
+                    {s.kind === "analyze" && <button className="btn xs ghost" title="Export CSV" onClick={() => exportCsv(s.id)}><Icon name="download" /></button>}
+                    <button className="btn xs ghost danger" title="Delete" onClick={() => del([s.id])}><Icon name="trash" /></button>
                   </td>
                 </tr>
               ))}</tbody>
             </table>
           </div>
         </div>
-      ) : <Empty icon="clock" title="Nothing here yet">Your topic reports and outlier searches are saved here automatically.</Empty>}
+      ) : <Empty icon="clock" title={scans.length ? "No matching reports" : "No history yet"}>{scans.length ? "Try a different filter." : "Reports are saved here automatically after each analysis."}</Empty>}
     </>
   );
 }

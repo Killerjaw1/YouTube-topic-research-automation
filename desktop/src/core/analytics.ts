@@ -245,12 +245,12 @@ export function insights(ov: Overview): Insight[] {
   if ((share.END_SCREEN ?? 0) < 0.02 && total > 500) tips.push({ type: "info", text: "End screens bring almost no views. Point every end screen at your best related video or a playlist." });
 
   const perK = (((t.subscribersGained ?? 0) - (t.subscribersLost ?? 0)) / views) * 1000;
-  tips.push({ type: perK >= 5 ? "good" : "info", text: `You gain ${perK.toFixed(1)} net subscribers per 1,000 views. ${perK >= 5 ? "Great conversion." : "Add a clear reason to subscribe mid-video (what's coming next), not just at the end."}` });
+  tips.push({ type: perK >= 5 ? "good" : "info", text: `You gain ${perK.toFixed(1)} net subscribers per 1,000 views. ${perK >= 5 ? "That is a strong conversion rate." : "Give viewers a clear reason to subscribe mid-video (what's coming next), not only at the end."}` });
 
   if (ov.ctr?.ctr != null) {
     const c = ov.ctr.ctr <= 1 ? ov.ctr.ctr * 100 : ov.ctr.ctr;
     if (c < 4) tips.push({ type: "bad", text: `Thumbnail click-through rate is ${c.toFixed(1)}%. Below ~4% means the thumbnail/title isn't earning clicks. Use bigger subjects, fewer words, stronger contrast, and test with Test & Compare.` });
-    else if (c >= 8) tips.push({ type: "good", text: `Thumbnail click-through rate is ${c.toFixed(1)}%, which is excellent.` });
+    else if (c >= 8) tips.push({ type: "good", text: `Thumbnail click-through rate is ${c.toFixed(1)}%, which is excellent for most niches.` });
     else tips.push({ type: "info", text: `Thumbnail click-through rate is ${c.toFixed(1)}%. Typical is 4-8%.` });
   }
 
@@ -281,7 +281,7 @@ export function retentionInsights(points: RetentionPoint[]): Insight[] {
     tips.push({ type: "bad", text: `Steep drop around ${Math.round(at * 100)}% through the video (-${Math.round(d * 100)}%). Rewatch that moment: slow section, off-topic tangent or a payoff that came too early?` });
   }
   const bump = pts.slice(1).find((b, i) => b.audienceWatchRatio - pts[i].audienceWatchRatio > 0.01 && b.elapsedVideoTimeRatio > 0.05);
-  if (bump) tips.push({ type: "good", text: `Retention rises around ${Math.round(bump.elapsedVideoTimeRatio * 100)}%, so viewers rewatch or skip to it. That moment is gold. Use it in the thumbnail, a Short or the hook.` });
+  if (bump) tips.push({ type: "good", text: `Retention rises around ${Math.round(bump.elapsedVideoTimeRatio * 100)}%, so viewers rewatch or skip to this moment. Consider using it in the thumbnail, the hook or a Short.` });
   const rel = mean(pts.map((p) => p.relativeRetentionPerformance ?? 0.5));
   tips.push({ type: rel >= 0.5 ? "good" : "info", text: `Retention is ${rel >= 0.5 ? "above" : "below"} average compared with similar-length YouTube videos (relative score ${rel.toFixed(2)}, where 0.5 is average).` });
   return tips;

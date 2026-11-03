@@ -11,7 +11,7 @@ import { autocomplete, expand, redditTop } from "./sources";
 import type { Store } from "./store";
 import {
   type AIAngles, type AIMetadata, type Candidate, type Idea, IDEA_STATUSES, type MyChannel, type OutlierResult, type PublicSettings,
-  type RedditPost, type Report, type RetentionPlan, type Scan, type ScanMeta, type Settings, type Status, UserError,
+  type RedditPost, type Report, type RetentionPlan, type Scan, type ScanMeta, type Settings, type Status, type Tracked, UserError,
 } from "./types";
 import { csv, median, round } from "./util";
 import { publishedAfterDays, YouTubeClient, type YouTubeSource } from "./youtube";
@@ -74,7 +74,8 @@ export class Engine {
       language: s.language,
       my_channel: s.my_channel,
       small_max: effectiveSmallMax(s),
-      counts: { scans: this.store.countScans(), ideas: this.store.listIdeas().length },
+      counts: { scans: this.store.countScans(), ideas: this.store.listIdeas().length, tracked: this.store.listTracked().length },
+      onboarded: s.onboarded,
     };
   }
 
@@ -106,7 +107,7 @@ export class Engine {
     for (const k of ["small_channel_max", "big_channel_min", "daily_quota", "fresh_days", "cache_hours"] as const) {
       if (patch[k] !== undefined && num(patch[k])) (clean as any)[k] = num(patch[k]);
     }
-    for (const k of ["demo_mode", "auto_small_threshold"] as const) if (patch[k] !== undefined) clean[k] = Boolean(patch[k]);
+    for (const k of ["demo_mode", "auto_small_threshold", "auto_update", "onboarded"] as const) if (patch[k] !== undefined) clean[k] = Boolean(patch[k]);
     if (patch.google_client_id !== undefined) clean.google_client_id = String(patch.google_client_id).trim();
     this.store.updateSettings(clean);
     return this.getSettings();
@@ -161,7 +162,29 @@ export class Engine {
     report.created = Date.now() / 1000;
     report.playbook = playbook(report);
     report.scan_id = this.store.saveScan("analyze", keyword, report, report.score, report.verdict, Boolean(report.demo));
+    if (this.store.isTracked(keyword)) this.store.addTrackPoint(keyword, this.point(report));
     return report;
+  }
+
+  private point(r: Report) {
+    return { t: r.created ?? Date.now() / 1000, score: r.score, verdict: r.verdict, scan_id: r.scan_id!, demo: Boolean(r.demo) };
+  }
+
+  // ---------------------------------------------------------------- watchlist
+  listTracked(): Tracked[] { return this.store.listTracked(); }
+
+  /** Start tracking a topic. Seeds its history with the report it was tracked from, if any. */
+  track(keyword: string, scanId?: number | null): Tracked {
+    const scan = scanId ? this.store.getScan(scanId) : undefined;
+    return this.store.track(keyword, scan?.kind === "analyze" ? this.point({ ...scan.payload, scan_id: scan.id }) : undefined);
+  }
+
+  untrack(keyword: string) { this.store.untrack(keyword); return { ok: true }; }
+
+  /** Re-score a tracked topic with fresh data (a quick scan) and record the result. */
+  async refreshTracked(keyword: string): Promise<Tracked | undefined> {
+    await this.analyze(keyword, "quick");
+    return this.store.listTracked().find((t) => t.keyword === keyword.trim().toLowerCase());
   }
 
   async discover(seed: string, mode: "full" | "alphabet" | "questions" = "full"): Promise<Candidate[]> {
@@ -332,6 +355,6 @@ export const ENGINE_METHODS = [
   "status", "getSettings", "saveSettings", "forgetSecret", "testYouTube", "clearCache", "suggest", "analyze", "discover", "outliers",
   "categories", "trending", "reddit", "connectChannel", "forgetChannel", "aiAngles", "aiMetadata", "optimizeCheck", "analyticsStatus",
   "analyticsOverview", "analyticsRetention", "analyticsDisconnect", "listScans", "getScan", "deleteScan", "scanCsv", "listIdeas",
-  "addIdea", "updateIdea", "deleteIdea", "ideasCsv",
+  "addIdea", "updateIdea", "deleteIdea", "ideasCsv", "listTracked", "track", "untrack", "refreshTracked",
 ] as const;
 export type EngineMethod = (typeof ENGINE_METHODS)[number];

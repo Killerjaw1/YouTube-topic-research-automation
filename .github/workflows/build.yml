@@ -52,4 +52,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: desktop/dist-installer/*.exe
+          files: |
+            desktop/dist-installer/*.exe
+            desktop/dist-installer/*.exe.blockmap
+            desktop/dist-installer/latest.yml

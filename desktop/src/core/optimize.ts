@@ -19,7 +19,7 @@ const PATTERNS: [string, string, RegExp][] = [
   ["brackets", "brackets or parentheses", /[([]/],
   ["versus", 'a comparison ("vs")', /\bvs\.?\b|\bversus\b/i],
   ["year", "the year", /\b20\d\d\b/],
-  ["how_why", '"how" / "why"', /\b(how|why)\b/i],
+  ["how_why", '"how" or "why"', /\b(how|why)\b/i],
   ["caps_word", "one ALL-CAPS word for emphasis", /\b[A-Z]{3,}\b/],
   ["negative", 'a warning ("mistakes", "don\'t", "stop")', /\b(mistakes?|don't|stop|never|wrong|avoid|worst)\b/i],
   ["separator", "a colon or dash splitting topic and promise", /[:|–—-]/],
@@ -144,15 +144,15 @@ function descriptionTemplate(report: Report, hashtags: string[], length: Playboo
     `[Line 1-2 show in search: say exactly what the viewer gets. Use "${kw}" naturally.]`,
     `In this video I break down ${kw}: what works, what doesn't, and the mistakes to avoid.`,
     "",
-    "⏱️ Chapters",
+    "Chapters",
     ...chapters.map((ch, i) => `${i ? ts(i * step) : "0:00"} ${ch}`),
     "",
-    "🔗 Resources mentioned",
+    "Resources mentioned",
     "- [link]",
     "",
-    "📺 Watch next: [link to your most related video or playlist]",
+    "Watch next: [link to your most related video or playlist]",
     "",
-    "💬 Question for you: [ask something specific - it drives comments]",
+    "[A specific question for viewers to answer in the comments]",
     "",
     hashtags.join(" "),
   ].join("\n");
@@ -176,9 +176,9 @@ export function playbook(report: Report): Playbook | null {
     `Keep the title around 40-60 characters. Top videos here average ${avgLen ?? 50}.`,
     "Thumbnail: one clear subject, 2-4 large words that add to the title rather than repeat it, and strong contrast. Check it at phone size before uploading.",
     "Use YouTube Studio's thumbnail Test & Compare to A/B test 2-3 thumbnails on every upload.",
-    ...patterns.filter((p) => p.share >= 0.3).slice(0, 3).map((p) => `${Math.round(p.share * 100)}% of the winning titles use ${p.label}. Consider it.`),
+    ...patterns.filter((p) => p.share >= 0.3).slice(0, 3).map((p) => `${Math.round(p.share * 100)}% of the winning titles use ${p.label}.`),
   ];
-  if (Number(m.big_in_top10) >= 5) ctr.push("Big channels own the broad title. Don't copy their framing. Make a narrower promise (a specific audience, budget, timeframe or result) so you're not competing head-on.");
+  if (Number(m.big_in_top10) >= 5) ctr.push("Large channels hold the broad version of this title. Make a narrower promise (a specific audience, budget, timeframe or result) instead of competing head-on.");
   if (m.content_gap) ctr.push(`The top videos are old. Signal freshness with "${new Date().getFullYear()}" or "updated" in the title/thumbnail.`);
 
   const watch = [
@@ -264,7 +264,7 @@ export function checkDraft(draft: Draft, report?: Report | null): { score: numbe
     else add("Title", "info", "No number, question or first-person hook.", "These patterns often lift CTR. Test one.");
     for (const p of (report?.playbook?.title_patterns ?? []).filter((x) => x.share >= 0.4).slice(0, 2)) {
       const rx = PATTERNS.find(([k]) => k === p.key)?.[2];
-      if (rx && !rx.test(title)) add("Title", "info", `${Math.round(p.share * 100)}% of winning titles for this topic use ${p.label}. Yours doesn't.`);
+      if (rx && !rx.test(title)) add("Title", "info", `${Math.round(p.share * 100)}% of winning titles for this topic use ${p.label}.Yours doesn't.`);
     }
   }
 

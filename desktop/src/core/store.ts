@@ -6,7 +6,7 @@
  * and in memory/localStorage for the browser demo (`npm run web`).
  */
 
-import { DEFAULT_SETTINGS, IDEA_STATUSES, type Idea, type Scan, type ScanMeta, type SecretName, type Settings } from "./types";
+import { DEFAULT_SETTINGS, IDEA_STATUSES, type Idea, type Scan, type ScanMeta, type SecretName, type Settings, type TrackPoint, type Tracked } from "./types";
 import { hash, quotaDay } from "./util";
 
 export interface Persist {
@@ -31,6 +31,7 @@ interface Index {
   scans: ScanMeta[];
   ideas: Idea[];
   quota: Record<string, number>;
+  tracked?: Tracked[];
 }
 
 export class MemoryPersist implements Persist {
@@ -152,6 +153,43 @@ export class Store {
   deleteScan(id: number) {
     this.index.scans = this.index.scans.filter((s) => s.id !== id);
     this.persist.remove(`scans/${id}.json`);
+    this.saveIndex();
+  }
+
+  // ------------------------------------------------------------ watchlist
+  listTracked(): Tracked[] {
+    return [...(this.index.tracked ?? [])];
+  }
+
+  isTracked(keyword: string) {
+    const k = keyword.trim().toLowerCase();
+    return (this.index.tracked ?? []).some((t) => t.keyword === k);
+  }
+
+  track(keyword: string, first?: TrackPoint): Tracked {
+    const k = keyword.trim().toLowerCase();
+    this.index.tracked ??= [];
+    let t = this.index.tracked.find((x) => x.keyword === k);
+    if (!t) {
+      t = { keyword: k, added: Date.now() / 1000, history: first ? [first] : [] };
+      this.index.tracked.unshift(t);
+      this.saveIndex();
+    }
+    return t;
+  }
+
+  untrack(keyword: string) {
+    const k = keyword.trim().toLowerCase();
+    this.index.tracked = (this.index.tracked ?? []).filter((t) => t.keyword !== k);
+    this.saveIndex();
+  }
+
+  /** Records a new score for a tracked topic (keeps the last 60 checks). */
+  addTrackPoint(keyword: string, point: TrackPoint) {
+    const t = (this.index.tracked ?? []).find((x) => x.keyword === keyword.trim().toLowerCase());
+    if (!t) return;
+    t.history.push(point);
+    if (t.history.length > 60) t.history.splice(0, t.history.length - 60);
     this.saveIndex();
   }
 

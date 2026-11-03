@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { VideoRow } from "../../core/types";
 import { call } from "../api";
 import { Icon } from "../components/Icon";
-import { analyzeLink, Chips, DemoBanner, Empty, go, Loading, type Route, useApp } from "../components/ui";
+import { analyzeLink, Chips, DemoBanner, Empty, go, Loading, PageHead, type Route, useApp } from "../components/ui";
 import { VideoTable } from "../components/VideoTable";
 import { fmt } from "../format";
 
@@ -30,31 +30,31 @@ export function TrendingPage({ route }: { route: Route }) {
   const vids = state.data?.videos ?? [];
   return (
     <>
+      <PageHead title="Trending" desc="YouTube's trending chart by country and category, with small-channel videos highlighted. ≈2 quota units." />
       <DemoBanner />
-      <p className="page-intro">What's on YouTube's trending chart right now, and which of it comes from small channels. Costs only ~2 units.</p>
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="row">
           <select className="select" value={region} onChange={(e) => setRegion(e.target.value)}>{REGIONS.map(([c, n]) => <option key={c} value={c}>{n}</option>)}</select>
           <select className="select" value={cat} onChange={(e) => setCat(e.target.value)}><option value="">All categories</option>{cats.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}</select>
-          <button className="btn primary" onClick={() => go(`#/trending?region=${region}&cat=${cat}`)}><Icon name="flame" />Load trending</button>
+          <button className="btn primary" onClick={() => go(`#/trending?region=${region}&cat=${cat}`)}>Update</button>
         </div>
       </div>
-      {state.loading && <Loading title="Loading trending videos…" />}
+      {state.loading && <Loading title="Loading trending videos" rows={6} />}
       {state.error && <Empty icon="x" title="Couldn't load trending">{state.error}</Empty>}
       {state.data && <>
-        <div className="grid g3" style={{ marginBottom: 16 }}>
-          <div className="card tile"><div className="label">Trending videos</div><div className="value">{vids.length}</div></div>
-          <div className="card tile"><div className="label">From small channels</div><div className="value">{vids.filter((v) => v.size === "small").length}</div><div className="foot">under {fmt(state.data.small_max)} subscribers</div></div>
-          <div className="card tile"><div className="label">Shorts in the chart</div><div className="value">{vids.filter((v) => v.format === "short").length}</div></div>
+        <div className="kpis" style={{ marginBottom: 16, gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+          <div className="kpi"><div className="label">Trending videos</div><div className="value">{vids.length}</div></div>
+          <div className="kpi"><div className="label">From small channels</div><div className="value">{vids.filter((v) => v.size === "small").length}</div><div className="foot">Under {fmt(state.data.small_max)} subscribers</div></div>
+          <div className="kpi"><div className="label">Shorts</div><div className="value">{vids.filter((v) => v.format === "short").length}</div></div>
         </div>
         {state.data.title_words.length > 0 && (
           <div className="card" style={{ marginBottom: 16 }}>
-            <h3>Trending themes</h3><p className="sub">Words that keep appearing in trending titles. Click one to score it as a topic.</p>
+            <h3>Recurring themes</h3><p className="sub">Words that appear across several trending titles. Select one to analyze it.</p>
             <div className="chips">{state.data.title_words.map((w) => <a key={w.word} className="chip" href={analyzeLink(w.word)}>{w.word} <b>{w.count}</b></a>)}</div>
           </div>
         )}
-        <div className="card">
-          <div className="card-head"><div><h3>Trending now</h3><p className="sub">Ranked by YouTube's trending chart</p></div>
+        <div className="card flush">
+          <div className="card-head" style={{ alignItems: "center" }}><div><h3>Trending now</h3><p className="sub">In chart order</p></div>
             <Chips value={vf} onChange={setVF} options={[["all", "All"], ["small", "Small channels"], ["short", "Shorts"]]} /></div>
           <VideoTable videos={vids} showRank filter={filter} />
         </div>

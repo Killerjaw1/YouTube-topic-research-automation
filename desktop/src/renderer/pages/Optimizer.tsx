@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { AIMetadata, DraftCheck, Playbook, RetentionPlan } from "../../core/types";
 import { call } from "../api";
 import { Icon, type IconName } from "../components/Icon";
-import { Empty, Loading, type Route, ScorePill, useApp } from "../components/ui";
+import { Empty, Loading, PageHead, type Route, ScorePill, useApp } from "../components/ui";
 import { store } from "../format";
 import { MetadataBlock } from "./Analyze";
 
@@ -37,7 +37,7 @@ export function OptimizerPage({ route }: { route: Route }) {
   useEffect(() => { if (f.title || f.description) check(); }, []); // eslint-disable-line
 
   const rewrite = async () => {
-    if (!status?.has_ai_key) return toast(status?.desktop ? "Add an Anthropic API key in Settings to use AI rewrites." : "AI rewrites are available in the desktop app.", "err");
+    if (!status?.has_ai_key) return toast(status?.desktop ? "Add an Anthropic API key in Settings to use rewrites." : "Rewrites are available in the desktop app.", "err");
     setAI({ loading: true });
     try { setAI({ data: await call("aiMetadata", draft()) }); } catch (e) { setAI({}); fail(e); }
   };
@@ -45,8 +45,7 @@ export function OptimizerPage({ route }: { route: Route }) {
   const groups = result ? [...new Set(result.checks.map((c) => c.group))] : [];
   return (
     <>
-      <p className="page-intro">Paste the title, description and tags you plan to upload. NicheRadar checks them against click-through and watch-time best practices
-        {f.keyword ? " and against what wins for your topic" : " (analyze the topic first for topic-specific advice)"}.</p>
+      <PageHead title="Upload optimizer" desc={`Check a draft title, description and tags against click-through and watch-time best practices${f.keyword ? ", and against what ranks for your topic" : ""}.`} />
       <div className="grid g-report">
         <div className="card">
           <form className="stack" style={{ gap: 14 }} autoComplete="off" onSubmit={(e) => { e.preventDefault(); check(); }}>
@@ -60,42 +59,43 @@ export function OptimizerPage({ route }: { route: Route }) {
             <label className="field">Description<textarea className="input" rows={9} value={f.description} onChange={set("description")} placeholder="Your draft description" /></label>
             <label className="field"><span>Tags <span className="hint">(comma separated)</span></span><input className="input" value={f.tags} onChange={set("tags")} /></label>
             <div className="row" style={{ justifyContent: "flex-end" }}>
-              <button type="button" className="btn" onClick={rewrite} disabled={ai.loading}><Icon name="sparkle" />AI rewrite</button>
-              <button className="btn primary"><Icon name="check" />Check draft</button>
+              <button type="button" className="btn" onClick={rewrite} disabled={ai.loading}><Icon name="wand" />Rewrite with Claude</button>
+              <button className="btn primary">Check draft</button>
             </div>
           </form>
         </div>
         <div>
-          {!result ? <Empty icon="wand" title="Draft checker">Fill in what you have and click Check draft. You'll get a score and specific fixes.</Empty> : (
+          {!result ? <Empty icon="wand" title="No draft checked yet">Enter what you have so far and choose Check draft to get a score with specific fixes.</Empty> : (
             <div className="card">
               <div className="row" style={{ gap: 16, marginBottom: 14 }}>
                 <ScorePill score={result.score} big />
-                <div><h3>Draft score</h3><p className="sub" style={{ margin: 0 }}>{result.report ? `Compared with your research on “${result.report.keyword}” (opportunity ${result.report.score})`
-                  : "General best practices (no topic report found for this keyword)"}</p></div>
+                <div><h3>Draft score</h3><p className="sub" style={{ margin: 0 }}>{result.report ? `Includes topic benchmarks from your analysis of “${result.report.keyword}”.`
+                  : "Best-practice checks only. Analyze the keyword to add topic benchmarks."}</p></div>
               </div>
               {groups.map((g) => (
                 <div key={g}>
-                  <h3 style={{ fontSize: 13, margin: "14px 0 8px" }}>{g}</h3>
+                  <div className="section-title">{g}</div>
                   <ul className="reasons">{result.checks.filter((c) => c.group === g).map((c, i) => (
-                    <li key={i} className={CLS[c.status]}><Icon name={ICON[c.status]} /><span>{c.text}{c.fix && <><br /><span className="small muted">{c.fix}</span></>}</span></li>
+                    <li key={i} className={CLS[c.status]}><Icon name={ICON[c.status]} /><span>{c.text}{c.fix && <span className="fix">{c.fix}</span>}</span></li>
                   ))}</ul>
                 </div>
               ))}
-              {result.playbook && (
-                <div className="row" style={{ marginTop: 14 }}><span className="small muted">Need ideas?</span>
+              {result.playbook && <>
+                <div className="section-title">Suggested titles for this topic</div>
+                <div className="chips">
                   {result.playbook.titles.slice(0, 3).map((t) => (
                     <button key={t} className="chip" onClick={() => { const next = { ...f, title: t }; setF(next); check(next); }}>{t}</button>
                   ))}
                 </div>
-              )}
+              </>}
             </div>
           )}
         </div>
       </div>
-      {ai.loading && <div style={{ marginTop: 16 }}><Loading title="Claude is reviewing your draft…" /></div>}
+      {ai.loading && <div style={{ marginTop: 16 }}><Loading title="Reviewing your draft" rows={5} /></div>}
       {ai.data && (
         <div className="card" style={{ marginTop: 16 }}>
-          <h3><Icon name="sparkle" /> AI review & rewrite</h3>
+          <div className="row between"><h3>Review and rewrite</h3><span className="badge outline">Generated with Claude</span></div>
           <ul className="reasons" style={{ marginTop: 12 }}>{ai.data.feedback.map((x) => <li key={x} className="info"><Icon name="info" /><span>{x}</span></li>)}</ul>
           <MetadataBlock md={ai.data.metadata} plan={ai.data.retention_plan} />
         </div>

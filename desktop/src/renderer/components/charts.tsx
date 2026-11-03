@@ -10,16 +10,32 @@ import { openExternal } from "../api";
 import { useApp } from "./ui";
 
 export function ScoreRing({ score }: { score: number }) {
-  const C = 2 * Math.PI * 56;
+  const r = 42, C = 2 * Math.PI * r;
   return (
-    <div className="ring">
-      <svg viewBox="0 0 132 132">
-        <circle cx="66" cy="66" r="56" stroke="var(--panel-3)" strokeWidth="11" fill="none" />
-        <circle cx="66" cy="66" r="56" stroke={TONE_COLOR[tone(score)]} strokeWidth="11" fill="none" strokeLinecap="round"
-          strokeDasharray={C} strokeDashoffset={C * (1 - score / 100)} style={{ transition: "stroke-dashoffset .8s" }} />
+    <div className="ring" role="img" aria-label={`Opportunity score ${score} of 100`}>
+      <svg viewBox="0 0 96 96">
+        <circle cx="48" cy="48" r={r} stroke="var(--surface-3)" strokeWidth="6" fill="none" />
+        <circle cx="48" cy="48" r={r} stroke={TONE_COLOR[tone(score)]} strokeWidth="6" fill="none" strokeLinecap="round"
+          strokeDasharray={C} strokeDashoffset={C * (1 - score / 100)} style={{ transition: "stroke-dashoffset .6s" }} />
       </svg>
-      <div className="num"><div><b>{score}</b><span>of 100</span></div></div>
+      <div className="num"><div><b>{score}</b><span>/ 100</span></div></div>
     </div>
+  );
+}
+
+/** Tiny trend line for tables (single series, last point marked). */
+export function Sparkline({ values, width = 84, height = 22 }: { values: number[]; width?: number; height?: number }) {
+  if (values.length < 2) return <span className="muted small">{values.length ? "1 check" : "–"}</span>;
+  const lo = Math.min(...values, 0), hi = Math.max(...values, 100);
+  const X = (i: number) => 2 + (i / (values.length - 1)) * (width - 4);
+  const Y = (v: number) => height - 2 - ((v - lo) / Math.max(hi - lo, 1)) * (height - 4);
+  const d = values.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`).join(" ");
+  const last = values[values.length - 1];
+  return (
+    <svg className="spark" width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-label={`Score trend, latest ${last}`}>
+      <path d={d} fill="none" stroke="var(--text-2)" strokeWidth="1.5" strokeLinejoin="round" />
+      <circle cx={X(values.length - 1)} cy={Y(last)} r="2.5" fill={TONE_COLOR[tone(last)]} />
+    </svg>
   );
 }
 
@@ -69,7 +85,7 @@ export function Scatter({ videos, smallMax, bigMin }: { videos: VideoRow[]; smal
         {sx > ml && sx < W - mr && (
           <g>
             <line x1={sx} x2={sx} y1={mt} y2={H - mb} stroke="var(--s-small)" strokeWidth="1" strokeDasharray="2 4" opacity=".6" />
-            <text className="reflabel" x={sx + 5} y={mt + 12}>small-channel cutoff</text>
+            <text className="reflabel" x={sx + 5} y={mt + 12}>small-channel limit</text>
           </g>
         )}
         <g>{pts.map((p) => p.breakout && <circle key={"r" + p.id} className="ring-mark" cx={X(p.subs!)} cy={Y(p.views)} r={10} />)}</g>
@@ -96,7 +112,7 @@ export function Scatter({ videos, smallMax, bigMin }: { videos: VideoRow[]; smal
       <div className="legend">
         <span><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" fill="var(--s-small)" /></svg>Small channels (&lt; {fmt(smallMax)})</span>
         <span><svg viewBox="0 0 12 12"><rect x="1" y="1" width="10" height="10" rx="2" fill="var(--s-mid)" /></svg>Mid-size</span>
-        <span><svg viewBox="0 0 12 12"><path d="M6 0.5 L11.5 11 L0.5 11 Z" fill="var(--s-big)" /></svg>Big channels ({fmt(bigMin)}+)</span>
+        <span><svg viewBox="0 0 12 12"><path d="M6 0.5 L11.5 11 L0.5 11 Z" fill="var(--s-big)" /></svg>Large channels ({fmt(bigMin)}+)</span>
         <span><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="var(--warn)" strokeWidth="2" /></svg>Breakout</span>
       </div>
     </div>

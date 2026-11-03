@@ -127,19 +127,19 @@ function formatStats(rows: VideoRow[], smallMax: number): FormatStats {
 export function verdictFor(score: number): [string, Tone] {
   if (score >= 70) return ["Strong opportunity", "great"];
   if (score >= 55) return ["Good with the right angle", "good"];
-  if (score >= 40) return ["Risky - needs a unique angle", "warn"];
+  if (score >= 40) return ["Needs a distinct angle", "warn"];
   return ["Saturated or low demand", "bad"];
 }
 
 function recommendFormat(s: FormatStats, l: FormatStats) {
   if (s.count < 3 && l.count < 3) return { format: "either", why: "Not enough results to compare formats." };
-  if (s.count < 3) return { format: "long", why: "Almost nothing in this topic is Shorts. Long-form owns it (or Shorts are an untested gap)." };
+  if (s.count < 3) return { format: "long", why: "Very few Shorts rank for this topic. Long-form dominates, although Shorts may be an untested gap." };
   if (l.count < 3) return { format: "short", why: "This topic is dominated by Shorts." };
   const sc = s.breakouts * 2 + s.small_share * 5 + Math.log10(s.median_vpd + 1);
   const lc = l.breakouts * 2 + l.small_share * 5 + Math.log10(l.median_vpd + 1);
-  if (Math.abs(sc - lc) < 1) return { format: "both", why: "Shorts and long-form perform similarly. Use Shorts to funnel viewers to a long video." };
-  if (sc > lc) return { format: "short", why: `Shorts break out more for small channels here (${s.breakouts} vs ${l.breakouts} breakouts).` };
-  return { format: "long", why: `Long-form gives small channels better results here (${l.breakouts} vs ${s.breakouts} breakouts).` };
+  if (Math.abs(sc - lc) < 1) return { format: "both", why: "Shorts and long-form perform similarly. Use Shorts to direct viewers to a long-form video." };
+  if (sc > lc) return { format: "short", why: `Shorts break out more often for small channels on this topic (${s.breakouts} vs. ${l.breakouts} breakouts).` };
+  return { format: "long", why: `Long-form performs better for small channels on this topic (${l.breakouts} vs. ${s.breakouts} breakouts).` };
 }
 
 export function titleWords(titles: string[], exclude: Set<string>): { word: string; count: number }[] {
@@ -218,25 +218,25 @@ export function analyze(keyword: string, rows: VideoRow[], s: Settings, recentRo
 
   // Reasons
   const f = fmtNum;
-  if (demand >= 60) reasons.push({ type: "good", text: `High demand: top results average ${f(demandVpd)} views/day.` });
-  else if (demand >= 35) reasons.push({ type: "info", text: `Moderate demand: about ${f(demandVpd)} views/day per top video.` });
-  else reasons.push({ type: "bad", text: `Low demand: only about ${f(demandVpd)} views/day per top video.` });
+  if (demand >= 60) reasons.push({ type: "good", text: `High demand: top results average ${f(demandVpd)} views per day.` });
+  else if (demand >= 35) reasons.push({ type: "info", text: `Moderate demand: top results average ${f(demandVpd)} views per day.` });
+  else reasons.push({ type: "bad", text: `Low demand: top results average only ${f(demandVpd)} views per day.` });
 
-  if (smallTop10 >= 3) reasons.push({ type: "good", text: `${smallTop10} of the top 10 results are from small channels (under ${f(smallMax)} subs). YouTube is willing to rank newcomers here.` });
-  else if (smallTop10 === 0) reasons.push({ type: "bad", text: `No small channels (under ${f(smallMax)} subs) in the top 10.` });
+  if (smallTop10 >= 3) reasons.push({ type: "good", text: `${smallTop10} of the top 10 results come from small channels (under ${f(smallMax)} subscribers), so YouTube ranks newer channels for this topic.` });
+  else if (smallTop10 === 0) reasons.push({ type: "bad", text: `None of the top 10 results come from small channels (under ${f(smallMax)} subscribers).` });
 
   if (breakouts.length) {
     const b = breakouts.reduce((a, x) => ((x.outlier ?? 0) > (a.outlier ?? 0) ? x : a));
-    reasons.push({ type: "good", text: `${breakouts.length} small-channel breakout video(s). Best: "${b.title.slice(0, 70)}" got ${f(b.views)} views on a ${f(b.subs)}-sub channel (${b.outlier}x its subscribers).` });
+    reasons.push({ type: "good", text: `${breakouts.length} small-channel ${breakouts.length === 1 ? "video" : "videos"} broke out. The strongest, "${b.title.slice(0, 70)}", reached ${f(b.views)} views on a channel with ${f(b.subs)} subscribers (${fmtNum(b.outlier ?? 0)}×).` });
   } else {
     reasons.push({ type: "bad", text: "No small-channel videos are outperforming their subscriber count." });
   }
-  if (bigTop10 >= 6) reasons.push({ type: "bad", text: `Big channels (${f(bigMin)}+ subs) hold ${bigTop10} of the top 10 spots. YouTube will likely recommend them over you for broad versions of this topic.` });
-  else if (bigTop10 <= 2) reasons.push({ type: "good", text: `Only ${bigTop10} big channel(s) in the top 10.` });
-  if (saturation >= 0.6) reasons.push({ type: "bad", text: `${Math.round(saturation * 100)}% of top titles use this exact phrase. Try a narrower or differently worded angle.` });
-  if (contentGap) reasons.push({ type: "good", text: "Content gap: demand is high but the top videos are mostly over a year old. An up-to-date video can stand out." });
-  else if (freshShare >= 0.5) reasons.push({ type: "good", text: `${Math.round(freshShare * 100)}% of top results are under ${freshDays} days old, so YouTube is surfacing new uploads for this topic.` });
-  else if (freshShare < 0.2) reasons.push({ type: "info", text: "Top results are mostly older videos that have locked in their rankings." });
+  if (bigTop10 >= 6) reasons.push({ type: "bad", text: `Large channels (${f(bigMin)}+ subscribers) hold ${bigTop10} of the top 10 positions and are likely to be recommended over you for broad versions of this topic.` });
+  else if (bigTop10 <= 2) reasons.push({ type: "good", text: `Only ${bigTop10} of the top 10 results come from large channels.` });
+  if (saturation >= 0.6) reasons.push({ type: "bad", text: `${Math.round(saturation * 100)}% of top titles use this exact phrase. A narrower or differently worded angle will stand out more.` });
+  if (contentGap) reasons.push({ type: "good", text: "Content gap: demand is high but most top videos are over a year old. An up-to-date video can compete." });
+  else if (freshShare >= 0.5) reasons.push({ type: "good", text: `${Math.round(freshShare * 100)}% of top results are less than ${freshDays} days old, so new uploads can rank for this topic.` });
+  else if (freshShare < 0.2) reasons.push({ type: "info", text: "Top results are mostly older videos with established rankings." });
 
   // Formats
   const short = formatStats(all.filter((r) => r.format === "short"), smallMax);
