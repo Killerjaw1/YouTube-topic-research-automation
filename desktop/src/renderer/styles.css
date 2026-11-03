@@ -367,6 +367,7 @@ input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--accent);
 .card-head > div:first-child { flex: 1; min-width: 0; }
 .card.flush > .card-head { padding: var(--s3) var(--s4); margin: 0; border-bottom: 1px solid var(--border-subtle); align-items: center; }
 .card .sub { margin: 2px 0 0; }
+.card-toolbar { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; padding: var(--s3) 14px; border-bottom: 1px solid var(--border-subtle); }
 .section { display: grid; gap: var(--s3); }
 .section-label { display: block; margin: var(--s5) 0 var(--s2); }
 .section-label:first-child { margin-top: 0; }
@@ -477,7 +478,7 @@ ol.steps-list li::before { content: counter(s); flex: none; width: 18px; height:
 .format-cmp { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
 .format-cmp > div { padding: var(--s3); border-radius: var(--radius-lg); background: var(--bg-sunken); border: 1px solid var(--border-subtle); }
 .format-cmp > div.win { border-color: color-mix(in srgb, var(--ok) 35%, var(--border)); }
-.format-cmp h4 { margin: 0 0 var(--s2); font-size: var(--fs); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.format-cmp h4 { margin: 0 0 var(--s2); font-size: var(--fs); font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .format-cmp dl, dl.facts { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 4px var(--s2); font-size: var(--fs-sm); }
 .format-cmp dt, dl.facts dt { color: var(--text-3); }
 .format-cmp dd, dl.facts dd { margin: 0; font-weight: 500; text-align: right; font-variant-numeric: tabular-nums; }

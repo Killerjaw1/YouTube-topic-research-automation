@@ -14,7 +14,7 @@ export function ScoreRing({ score }: { score: number }) {
   return (
     <div className="ring" role="img" aria-label={`Opportunity score ${score} of 100`}>
       <svg viewBox="0 0 96 96">
-        <circle cx="48" cy="48" r={r} stroke="var(--surface-3)" strokeWidth="6" fill="none" />
+        <circle cx="48" cy="48" r={r} stroke="var(--bg-active)" strokeWidth="6" fill="none" />
         <circle cx="48" cy="48" r={r} stroke={TONE_COLOR[tone(score)]} strokeWidth="6" fill="none" strokeLinecap="round"
           strokeDasharray={C} strokeDashoffset={C * (1 - score / 100)} style={{ transition: "stroke-dashoffset .6s" }} />
       </svg>
@@ -39,7 +39,7 @@ export function Sparkline({ values, width = 84, height = 22 }: { values: number[
   );
 }
 
-const SERIES = { small: "var(--s-small)", mid: "var(--s-mid)", big: "var(--s-big)", unknown: "var(--muted)" } as const;
+const SERIES = { small: "var(--series-1)", mid: "var(--series-2)", big: "var(--series-3)", unknown: "var(--idle)" } as const;
 
 function Dl({ rows }: { rows: [string, ReactNode][] }) {
   return <dl>{rows.map(([k, v]) => [<dt key={k + "t"}>{k}</dt>, <dd key={k + "d"}>{v}</dd>])}</dl>;
@@ -50,7 +50,7 @@ export function Scatter({ videos, smallMax, bigMin }: { videos: VideoRow[]; smal
   const { tip } = useApp();
   const [hover, setHover] = useState<number | null>(null);
   const pts = videos.filter((v) => v.subs != null && v.views > 0);
-  if (pts.length < 3) return <div className="empty">Not enough channel data to chart.</div>;
+  if (pts.length < 3) return <div className="empty-state"><b>Not enough data to chart</b><p>Too few results had public subscriber counts.</p></div>;
   const W = 860, H = 360, ml = 58, mr = 18, mt = 14, mb = 40;
   const lx = (v: number) => Math.log10(Math.max(v, 10));
   const xs = pts.map((p) => lx(p.subs!)), ys = pts.map((p) => lx(p.views));
@@ -84,7 +84,7 @@ export function Scatter({ videos, smallMax, bigMin }: { videos: VideoRow[]; smal
         )}
         {sx > ml && sx < W - mr && (
           <g>
-            <line x1={sx} x2={sx} y1={mt} y2={H - mb} stroke="var(--s-small)" strokeWidth="1" strokeDasharray="2 4" opacity=".6" />
+            <line x1={sx} x2={sx} y1={mt} y2={H - mb} stroke="var(--series-1)" strokeWidth="1" strokeDasharray="2 4" opacity=".6" />
             <text className="reflabel" x={sx + 5} y={mt + 12}>small-channel limit</text>
           </g>
         )}
@@ -110,48 +110,50 @@ export function Scatter({ videos, smallMax, bigMin }: { videos: VideoRow[]; smal
         </g>
       </svg>
       <div className="legend">
-        <span><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" fill="var(--s-small)" /></svg>Small channels (&lt; {fmt(smallMax)})</span>
-        <span><svg viewBox="0 0 12 12"><rect x="1" y="1" width="10" height="10" rx="2" fill="var(--s-mid)" /></svg>Mid-size</span>
-        <span><svg viewBox="0 0 12 12"><path d="M6 0.5 L11.5 11 L0.5 11 Z" fill="var(--s-big)" /></svg>Large channels ({fmt(bigMin)}+)</span>
+        <span><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" fill="var(--series-1)" /></svg>Small channels (under {fmt(smallMax)})</span>
+        <span><svg viewBox="0 0 12 12"><rect x="1" y="1" width="10" height="10" rx="2" fill="var(--series-2)" /></svg>Mid-size</span>
+        <span><svg viewBox="0 0 12 12"><path d="M6 0.5 L11.5 11 L0.5 11 Z" fill="var(--series-3)" /></svg>Large channels ({fmt(bigMin)}+)</span>
         <span><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="var(--warn)" strokeWidth="2" /></svg>Breakout</span>
       </div>
     </div>
   );
 }
 
-/** Single-series bar chart with per-bar hover. */
-export function BarChart({ data }: { data: { label: string; value: number; tip: ReactNode }[] }) {
+/** Bar chart: the latest bar in full accent, earlier bars at 50%, the value above the tallest bar. */
+export function BarChart({ data, unit = "views", latestLabel = "Latest day", earlierLabel = "Earlier days" }:
+  { data: { label: string; value: number; tip: ReactNode }[]; unit?: string; latestLabel?: string; earlierLabel?: string }) {
   const { tip } = useApp();
-  const [hover, setHover] = useState<number | null>(null);
-  if (!data.length) return <div className="empty">No data.</div>;
-  const W = 720, H = 220, ml = 44, mb = 26, mt = 8, mr = 6;
+  if (!data.length) return <div className="empty-state"><b>No data for this period</b></div>;
+  const W = 720, H = 210, ml = 40, mb = 24, mt = 20, mr = 4;
   const max = Math.max(...data.map((d) => d.value), 1);
   const nice = 10 ** Math.floor(Math.log10(max)), top = Math.ceil(max / nice) * nice;
   const bw = (W - ml - mr) / data.length, gap = Math.min(4, bw * 0.25);
   const Y = (v: number) => H - mb - (v / top) * (H - mt - mb);
   const step = Math.ceil(data.length / 7);
+  const peak = data.reduce((a, d, i) => (d.value > data[a].value ? i : a), 0);
   return (
     <div className="chart">
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Daily views bar chart">
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Bar chart of ${unit}; highest ${fmt(data[peak].value)} on ${data[peak].label}`}>
         <g className="axis">
-          {[0, 1, 2, 3, 4].map((i) => {
-            const v = (top / 4) * i;
-            return <g key={i}><line className="gridline" x1={ml} x2={W - mr} y1={Y(v)} y2={Y(v)} /><text x={ml - 6} y={Y(v) + 4} textAnchor="end">{fmt(v)}</text></g>;
-          })}
+          {[0, 0.5, 1].map((f) => <g key={f}><line className="gridline" x1={ml} x2={W - mr} y1={Y(top * f)} y2={Y(top * f)} /><text x={ml - 6} y={Y(top * f) + 4} textAnchor="end">{fmt(top * f)}</text></g>)}
+        </g>
+        <g className="axis">
           {data.map((d, i) => {
             const x = ml + i * bw + gap / 2, w = Math.max(bw - gap, 1), y = Y(d.value), h = H - mb - y;
-            const r = Math.min(4, w / 2, h);
+            const r = Math.min(3, w / 2, h);
             const path = h > 0 ? `M${x} ${H - mb} V${y + r} Q${x} ${y} ${x + r} ${y} H${x + w - r} Q${x + w} ${y} ${x + w} ${y + r} V${H - mb} Z` : "";
             return (
-              <g key={d.label} onMouseEnter={(e) => { setHover(i); tip.show(d.tip, e); }} onMouseMove={tip.move} onMouseLeave={() => { setHover(null); tip.hide(); }}>
+              <g key={d.label} onMouseEnter={(e) => tip.show(d.tip, e)} onMouseMove={tip.move} onMouseLeave={tip.hide}>
                 <rect x={ml + i * bw} y={mt} width={bw} height={H - mt - mb} fill="transparent" />
-                <path d={path} fill="var(--s-small)" style={hover === i ? { filter: "brightness(1.25)" } : undefined} />
-                {i % step === 0 && <text x={x + w / 2} y={H - 8} textAnchor="middle">{d.label.slice(5)}</text>}
+                <path className={`bar ${i === data.length - 1 ? "current" : ""}`} d={path} />
+                {i === peak && <text className="value-label" x={x + w / 2} y={y - 6} textAnchor="middle">{fmt(d.value)}</text>}
+                {i % step === 0 && <text x={x + w / 2} y={H - 6} textAnchor="middle">{d.label.slice(5)}</text>}
               </g>
             );
           })}
         </g>
       </svg>
+      <div className="legend"><span><span className="dot accent" />{latestLabel}</span><span><span className="dot accent" style={{ opacity: 0.5 }} />{earlierLabel}</span></div>
     </div>
   );
 }
@@ -161,7 +163,7 @@ export function RetentionChart({ points, durationS }: { points: { x: number; y: 
   const { tip } = useApp();
   const svgRef = useRef<SVGSVGElement>(null);
   const [cur, setCur] = useState<{ x: number; y: number } | null>(null);
-  if (!points.length) return <div className="empty">No retention data yet.</div>;
+  if (!points.length) return <div className="empty-state"><b>No retention data yet</b><p>YouTube needs more views before it can show this.</p></div>;
   const W = 760, H = 260, ml = 44, mr = 10, mt = 10, mb = 28;
   const ymax = Math.max(1, ...points.map((p) => p.y)) * 1.05;
   const X = (x: number) => ml + x * (W - ml - mr), Y = (y: number) => H - mb - (y / ymax) * (H - mt - mb);
@@ -177,11 +179,11 @@ export function RetentionChart({ points, durationS }: { points: { x: number; y: 
           {yTicks.map((v) => <g key={v}><line className="gridline" x1={ml} x2={W - mr} y1={Y(v)} y2={Y(v)} /><text x={ml - 6} y={Y(v) + 4} textAnchor="end">{Math.round(v * 100)}%</text></g>)}
           {[0, 0.25, 0.5, 0.75, 1].map((x) => <text key={x} x={X(x)} y={H - 8} textAnchor="middle">{label(x)}</text>)}
         </g>
-        <path d={area} fill="var(--s-small)" opacity=".12" />
-        <path d={d} fill="none" stroke="var(--s-small)" strokeWidth="2" strokeLinejoin="round" />
+        <path d={area} fill="var(--accent)" opacity=".1" />
+        <path d={d} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" />
         {cur && <>
-          <line x1={X(cur.x)} x2={X(cur.x)} y1={mt} y2={H - mb} stroke="var(--muted)" strokeWidth="1" opacity=".6" />
-          <circle cx={X(cur.x)} cy={Y(cur.y)} r="5" fill="var(--s-small)" stroke="var(--panel)" strokeWidth="2" />
+          <line x1={X(cur.x)} x2={X(cur.x)} y1={mt} y2={H - mb} stroke="var(--text-3)" strokeWidth="1" opacity=".6" />
+          <circle cx={X(cur.x)} cy={Y(cur.y)} r="5" fill="var(--accent)" stroke="var(--bg-raised)" strokeWidth="2" />
         </>}
         <rect x={ml} y={mt} width={W - ml - mr} height={H - mt - mb} fill="transparent"
           onMouseMove={(e) => {

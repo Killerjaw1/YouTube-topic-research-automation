@@ -1,11 +1,14 @@
 import { useMemo, useState } from "react";
 import type { VideoRow } from "../../core/types";
-import { fmt, fmtAge } from "../format";
-import { FormatBadge, SizeBadge, Thumb } from "./ui";
+import { fmt, fmtAge, fmtDur } from "../format";
+import { Button, DetailPanel, EmptyState, Facts, StateCard, Tag } from "./kit";
+import { FormatBadge, SizeBadge, Thumb, useApp } from "./ui";
 
 type Key = "rank" | "title" | "subs" | "views" | "vpd" | "outlier" | "age_days" | "format";
 
+/** Sortable results table. Selecting a row opens its details on the right. */
 export function VideoTable({ videos, showRank = false, filter }: { videos: VideoRow[]; showRank?: boolean; filter?: (v: VideoRow) => boolean }) {
+  const { panel } = useApp();
   const [sortKey, setSortKey] = useState<Key>(showRank ? "rank" : "views");
   const [dir, setDir] = useState(showRank ? 1 : -1);
   const cols: [Key, string, string][] = [
@@ -24,34 +27,66 @@ export function VideoTable({ videos, showRank = false, filter }: { videos: Video
     if (k === sortKey) setDir(-dir);
     else { setSortKey(k); setDir(["rank", "title", "age_days"].includes(k) ? 1 : -1); }
   };
-  if (!list.length) return <div className="empty">No videos match this filter.</div>;
+  const select = (v: VideoRow) => panel.open(<VideoDetail v={v} onClose={panel.close} />, "video:" + v.id);
+  if (!list.length) return <EmptyState card={false} icon="search" title="No videos match this filter">Choose another filter to see more results.</EmptyState>;
   return (
-    <div className="table-wrap" style={{ maxHeight: 620 }}>
+    <div className="table-wrap" style={{ maxHeight: 640 }}>
       <table className="data">
         <thead><tr>{cols.map(([k, l, c]) => (
-          <th key={k} className={`sortable ${c}`} onClick={() => sortBy(k)}>{l}{sortKey === k && <span className="arrow">{dir > 0 ? "▲" : "▼"}</span>}</th>
+          <th key={k} className={`sortable ${c}`} onClick={() => sortBy(k)} aria-sort={sortKey === k ? (dir > 0 ? "ascending" : "descending") : "none"}>
+            {l}{sortKey === k && <span className="arrow">{dir > 0 ? "▲" : "▼"}</span>}
+          </th>
         ))}</tr></thead>
         <tbody>{list.map((v) => (
-          <tr key={v.id}>
-            {showRank && <td className="num muted">{v.rank ?? <span className="badge neutral" title="From the most-viewed recent uploads, not the main search">recent</span>}</td>}
+          <tr key={v.id} className="clickable" tabIndex={0} aria-selected={panel.key === "video:" + v.id}
+            onClick={() => select(v)} onKeyDown={(e) => { if (e.key === "Enter") select(v); }}>
+            {showRank && <td className="num muted">{v.rank ?? <Tag title="From the most-viewed recent uploads, not the main search">Recent</Tag>}</td>}
             <td>
               <div className="vid-cell">
-                <a href={v.url} target="_blank" rel="noopener"><Thumb v={v} /></a>
+                <Thumb v={v} />
                 <div style={{ minWidth: 0 }}>
-                  <a href={v.url} target="_blank" rel="noopener"><div className="t">{v.breakout && <span className="breakout-star" title="Small-channel breakout">★ </span>}{v.title}</div></a>
-                  <div className="small muted row" style={{ gap: 6, marginTop: 3 }}>{v.channel_title} <SizeBadge v={v} /></div>
+                  <div className="title">{v.title}</div>
+                  <div className="secondary">{v.channel_title}<SizeBadge v={v} />{v.breakout && <Tag tone="warn">Breakout</Tag>}</div>
                 </div>
               </div>
             </td>
-            <td className="num">{v.subs == null ? <span className="muted">hidden</span> : fmt(v.subs)}</td>
+            <td className="num">{v.subs == null ? <span className="muted">Hidden</span> : fmt(v.subs)}</td>
             <td className="num">{fmt(v.views)}</td>
             <td className="num">{fmt(v.vpd)}</td>
-            <td className="num">{v.outlier == null ? "–" : <b style={{ color: v.outlier >= 3 ? "var(--great)" : "inherit" }}>{v.outlier >= 100 ? Math.round(v.outlier) : v.outlier.toFixed(1)}×</b>}</td>
+            <td className="num">{v.outlier == null ? "–" : <span className={v.outlier >= 3 ? "delta up" : ""}>{v.outlier >= 100 ? Math.round(v.outlier) : v.outlier.toFixed(1)}×</span>}</td>
             <td className="num">{fmtAge(v.age_days)}</td>
             <td><FormatBadge format={v.format} /></td>
           </tr>
         ))}</tbody>
       </table>
     </div>
+  );
+}
+
+/** Details for one ranking video, shown in the right-hand panel. */
+export function VideoDetail({ v, onClose }: { v: VideoRow; onClose(): void }) {
+  return (
+    <DetailPanel title={v.title} sub={v.channel_title} onClose={onClose}
+      footer={<Button variant="primary" icon="external" href={v.url} target="_blank" rel="noopener">Open on YouTube</Button>}>
+      <Thumb v={v} large />
+      <div className="row">
+        <SizeBadge v={v} /><FormatBadge format={v.format} />{v.rank != null && <Tag>Rank {v.rank}</Tag>}
+      </div>
+      {v.breakout && <StateCard tone="warn" icon="rocket" title="Small-channel breakout">This video reached far beyond its channel’s usual audience, so YouTube recommended it to new viewers.</StateCard>}
+      <div>
+        <span className="section-label">Performance</span>
+        <Facts rows={[
+          ["Views", fmt(v.views)], ["Views per day", fmt(v.vpd)], ["Views ÷ subscribers", v.outlier == null ? "–" : v.outlier < 0.01 ? "under 0.01×" : `${v.outlier}×`],
+          ["Versus channel average", v.multiple == null ? "–" : v.multiple < 0.01 ? "under 0.01×" : `${v.multiple}×`], ["Likes and comments", `${v.engagement}% of views`],
+        ]} />
+      </div>
+      <div>
+        <span className="section-label">Video</span>
+        <Facts rows={[["Published", `${fmtAge(v.age_days)} ago`], ["Length", fmtDur(v.duration_s) || "–"], ["Channel subscribers", v.subs == null ? "Hidden" : fmt(v.subs)], ["Channel videos", fmt(v.channel_videos)]]} />
+      </div>
+      {v.tags.length > 0 && (
+        <div><span className="section-label">Tags</span><div className="chips">{v.tags.slice(0, 16).map((t) => <Tag key={t}>{t}</Tag>)}</div></div>
+      )}
+    </DetailPanel>
   );
 }
