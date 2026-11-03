@@ -428,6 +428,7 @@ input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--accent);
 
 /* =================================================== metrics and reports */
 .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-raised); overflow: hidden; }
+.kpis.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .kpi { padding: var(--s3) var(--s4); border-left: 1px solid var(--border-subtle); min-width: 0; }
 .kpi:first-child { border-left: 0; }
 .kpi .label { display: block; }
@@ -718,7 +719,7 @@ details.howto a:hover { text-decoration: underline; }
   .titlebar .right .status { display: none; }
 }
 @media (max-width: 560px) {
-  .kpis, .subscores { grid-template-columns: minmax(0, 1fr); }
+  .kpis, .kpis.three, .subscores { grid-template-columns: minmax(0, 1fr); }
   .kpi, .subscore { border-left: 0 !important; border-top: 1px solid var(--border-subtle); }
   .kpi:first-child, .subscore:first-child { border-top: 0; }
 }
