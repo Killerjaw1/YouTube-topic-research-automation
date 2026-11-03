@@ -164,7 +164,7 @@ export function Thumbnail({ src, title, name, category, large }: { src?: string;
   const cat = category ?? CATS[hue(title || name || "?") % 4];
   const initials = (name || title || "?").split(/\s+/).filter(Boolean).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
   return (
-    <div className={`thumb ${large ? "lg" : ""}`} style={src ? undefined : { background: `color-mix(in srgb, var(--${cat}) 20%, var(--bg-sunken))`, color: `var(--${cat})` }}>
+    <div className={`thumb ${large ? "lg" : ""}`} style={src ? undefined : { background: `color-mix(in srgb, var(--${cat}) 11%, var(--bg-sunken))`, color: `var(--${cat})` }}>
       {src ? <img src={src} alt="" loading="lazy" /> : <span className="initials">{initials}</span>}
       {!src && <span className="banner-strip" style={{ background: `var(--${cat})` }} />}
     </div>

@@ -70,7 +70,7 @@ export function VideoDetail({ v, onClose }: { v: VideoRow; onClose(): void }) {
       footer={<Button variant="primary" icon="external" href={v.url} target="_blank" rel="noopener">Open on YouTube</Button>}>
       <Thumb v={v} large />
       <div className="row">
-        <SizeBadge v={v} /><FormatBadge format={v.format} />{v.rank != null && <Tag>Rank {v.rank}</Tag>}
+        {v.size && <SizeBadge v={v} />}<FormatBadge format={v.format} />{v.rank != null && <Tag>Rank {v.rank}</Tag>}
       </div>
       {v.breakout && <StateCard tone="warn" icon="rocket" title="Small-channel breakout">This video reached far beyond its channel’s usual audience, so YouTube recommended it to new viewers.</StateCard>}
       <div>
