@@ -25,7 +25,7 @@ function IdeaEditor({ idea, onSaved, onClose }: { idea: Idea; onSaved(): void; o
       }}>Delete idea</Button></>} />
   ));
   return (
-    <DetailPanel title={idea.title} sub={`Updated ${ago(idea.updated).toLowerCase()}`} onClose={onClose}
+    <DetailPanel title={idea.title} sub={`Updated ${ago(idea.updated, true)}`} onClose={onClose}
       footer={<>
         <Button variant="primary" busy={busy} disabled={!dirty} onClick={save}>Save changes</Button>
         {idea.scan_id && <Button href={`#/report/${idea.scan_id}`}>Open report</Button>}

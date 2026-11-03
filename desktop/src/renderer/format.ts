@@ -24,16 +24,17 @@ export function fmtDur(s: number | null | undefined): string {
   return (h ? `${h}:${String(m).padStart(2, "0")}` : String(m)) + ":" + String(sec).padStart(2, "0");
 }
 
-/** Relative time: "just now", "12 min ago", "2 h ago", "Yesterday 14:30", "Mon 09:10", "3 Oct". */
-export function ago(ts: number): string {
+/** Relative time: "Just now", "5 min ago", "2 h ago", "Yesterday 14:30", "Mon 09:12", "3 Mar".
+ *  Pass `inline` when it follows other words ("Checked just now", "Updated yesterday 14:30"). */
+export function ago(ts: number, inline = false): string {
   const d = new Date(ts * 1000), now = new Date();
   const s = (now.getTime() - d.getTime()) / 1000;
   const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
-  if (s < 60) return "just now";
+  if (s < 60) return inline ? "just now" : "Just now";
   if (s < 3600) return Math.round(s / 60) + " min ago";
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   if (d.getTime() >= startOfToday) return Math.round(s / 3600) + " h ago";
-  if (d.getTime() >= startOfToday - 86400000) return `Yesterday ${time}`;
+  if (d.getTime() >= startOfToday - 86400000) return `${inline ? "yesterday" : "Yesterday"} ${time}`;
   if (s < 86400 * 6) return `${d.toLocaleDateString([], { weekday: "short" })} ${time}`;
   return d.toLocaleDateString([], { day: "numeric", month: "short", ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) });
 }

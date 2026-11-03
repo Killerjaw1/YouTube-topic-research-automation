@@ -93,7 +93,7 @@ export function ReportPage({ id }: { id: number }) {
   const rep: Report = { ...scan.payload, scan_id: id };
   return (
     <>
-      <PageHead title="Topic report" desc={`Saved ${rep.created ? ago(rep.created).toLowerCase() : ""}. Opening a saved report uses no quota.`}>
+      <PageHead title="Topic report" desc={`Saved ${rep.created ? ago(rep.created, true) : ""}. Opening a saved report uses no quota.`}>
         <Button href="#/history" icon="arrowLeft">History</Button>
         <Button href={analyzeLink(rep.keyword, rep.depth)} icon="refresh">Run again</Button>
       </PageHead>

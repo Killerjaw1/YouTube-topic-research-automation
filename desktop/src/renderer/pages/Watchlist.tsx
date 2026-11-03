@@ -60,14 +60,14 @@ export function WatchlistPage() {
   function openDetail(t: Tracked) {
     const h = t.history, last = h[h.length - 1];
     panel.open(
-      <DetailPanel title={t.keyword} sub={`Tracked since ${ago(t.added).toLowerCase()}`} onClose={panel.close}
+      <DetailPanel title={t.keyword} sub={`Tracked since ${ago(t.added, true)}`} onClose={panel.close}
         footer={<>
           <Button variant="primary" icon="refresh" busy={busy === t.keyword} onClick={() => refreshOne(t.keyword)}>Re-score</Button>
           {last && <Button href={`#/report/${last.scan_id}`}>Open report</Button>}
           <Button variant="ghost" className="danger" style={{ marginLeft: "auto" }} onClick={() => remove(t.keyword)}>Stop tracking</Button>
         </>}>
         {last ? <>
-          <div className="row"><ScorePill score={last.score} big /><div><Verdict score={last.score}>{last.verdict}</Verdict><div className="secondary">Last checked {ago(last.t)}</div></div></div>
+          <div className="row"><ScorePill score={last.score} big /><div><Verdict score={last.score}>{last.verdict}</Verdict><div className="secondary">Last checked {ago(last.t, true)}</div></div></div>
           {h.length > 1 ? (
             <div>
               <span className="section-label">Score history</span>

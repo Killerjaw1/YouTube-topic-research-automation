@@ -74,7 +74,7 @@ export function Dashboard() {
                   const h = t.history, last = h[h.length - 1];
                   return (
                     <ListRow key={t.keyword} href="#/watchlist" leading={<ScorePill score={last?.score} />} title={t.keyword}
-                      secondary={last ? `Checked ${ago(last.t)}` : "Not scored yet"}
+                      secondary={last ? `Checked ${ago(last.t, true)}` : "Not scored yet"}
                       end={<><Sparkline values={h.map((p) => p.score)} /><Delta value={h.length > 1 ? last.score - h[h.length - 2].score : null} /></>} />
                   );
                 })}
