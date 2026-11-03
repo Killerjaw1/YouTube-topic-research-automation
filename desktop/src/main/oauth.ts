@@ -8,9 +8,11 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import type { Analytics } from "../core/analytics";
 
-const page = (title: string, body: string) => `<!doctype html><html><head><meta charset="utf-8"><title>${title} - NicheRadar</title>
-<style>body{font:16px/1.5 'Segoe UI',system-ui,sans-serif;background:#0b0d12;color:#eceef3;display:grid;place-items:center;min-height:100vh;margin:0}
-main{max-width:460px;padding:32px;border:1px solid #242a38;border-radius:16px;background:#12151c;text-align:center}h1{margin:0 0 10px;font-size:22px}p{color:#a7adbb}</style>
+const page = (title: string, body: string) => `<!doctype html><html><head><meta charset="utf-8"><title>${title} · NicheRadar</title>
+<style>:root{--bg-app:#111214;--bg-raised:#17181b;--border:#222327;--text:#ececee;--text-2:#a3a3ab;--font:'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif;--font-display:'Segoe UI Variable Display','Segoe UI',system-ui,sans-serif}
+@media (prefers-color-scheme:light){:root{--bg-app:#f4f4f5;--bg-raised:#fff;--border:#e4e4e7;--text:#18181b;--text-2:#52525b}}
+body{font:13px/1.5 var(--font);background:var(--bg-app);color:var(--text);display:grid;place-items:center;min-height:100vh;margin:0}
+main{max-width:420px;padding:24px;border:1px solid var(--border);border-radius:8px;background:var(--bg-raised)}h1{margin:0 0 6px;font:600 22px/1.25 var(--font-display);letter-spacing:-.01em}p{margin:0;color:var(--text-2)}</style>
 </head><body><main><h1>${title}</h1><p>${body}</p></main></body></html>`;
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -27,19 +29,19 @@ export async function signIn(analytics: Analytics, openExternal: (url: string) =
   const url = await analytics.authUrl(redirect);
 
   const result = new Promise<{ title: string }>((resolve, reject) => {
-    const timer = setTimeout(() => { server.close(); reject(new Error("Sign-in timed out. Click Connect to try again.")); }, timeoutMs);
+    const timer = setTimeout(() => { server.close(); reject(new Error("Sign-in took too long, so it was stopped. Choose Connect with Google to try again.")); }, timeoutMs);
     server.on("request", async (req, res) => {
       const u = new URL(req.url ?? "/", redirect);
       if (u.pathname !== "/callback") { res.writeHead(404).end(); return; }
       const error = u.searchParams.get("error");
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       try {
-        if (error) throw new Error(`Google returned: ${error}. You can close this tab and try again from NicheRadar.`);
+        if (error) throw new Error(`Google didn’t complete the sign-in (${error}). Close this tab and try again from NicheRadar.`);
         const info = await analytics.finish(u.searchParams.get("state") ?? "", u.searchParams.get("code") ?? "");
-        res.end(page("Connected!", `YouTube Analytics for <b>${esc(info.title)}</b> is connected. You can close this tab and go back to NicheRadar.`));
+        res.end(page("YouTube Analytics connected", `YouTube Analytics for <b>${esc(info.title)}</b> is connected. You can close this tab and go back to NicheRadar.`));
         resolve(info);
       } catch (e: any) {
-        res.end(page("Couldn't connect", esc(e?.message ?? String(e))));
+        res.end(page("YouTube Analytics isn’t connected", esc(e?.message ?? String(e))));
         reject(e);
       } finally {
         clearTimeout(timer);

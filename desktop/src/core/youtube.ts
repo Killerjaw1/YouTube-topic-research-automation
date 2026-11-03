@@ -13,11 +13,11 @@ const COSTS: Record<string, number> = { search: 100, videos: 1, channels: 1, pla
 
 export class QuotaExceeded extends UserError {
   constructor() {
-    super("Your YouTube API quota is used up for today. It resets at midnight Pacific time.", "QuotaExceeded");
+    super("Today’s YouTube quota is used up. It resets at midnight Pacific time; until then you can reopen saved reports.", "QuotaExceeded");
   }
 }
 export class InvalidKey extends UserError {
-  constructor(msg = "The YouTube API key is not valid. Check it in Settings.") {
+  constructor(msg = "YouTube didn’t accept the API key. Check it in Settings, under YouTube data.") {
     super(msg, "InvalidKey");
   }
 }
@@ -80,7 +80,7 @@ export class YouTubeClient implements YouTubeSource {
     try {
       resp = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(20000) });
     } catch (e: any) {
-      throw new UserError(`Could not reach YouTube: ${e?.message ?? e}`);
+      throw new UserError(`YouTube couldn’t be reached (${e?.message ?? e}). Check your internet connection and try again.`);
     }
     // Quota is charged for every request that reaches the API, even failed ones.
     this.store.addQuota(COSTS[endpoint] ?? 1);
@@ -94,9 +94,9 @@ export class YouTubeClient implements YouTubeSource {
       if (["quotaExceeded", "dailyLimitExceeded", "rateLimitExceeded"].some((r) => reasons.has(r))) throw new QuotaExceeded();
       if (reasons.has("keyInvalid") || reasons.has("keyExpired") || message.includes("API key not valid")) throw new InvalidKey();
       if (resp.status === 403 && message.includes("has not been used")) {
-        throw new InvalidKey("YouTube Data API v3 isn't enabled for this key's Google Cloud project. Enable it in the Google Cloud console, then try again.");
+        throw new InvalidKey("YouTube Data API v3 isn’t turned on for this key’s Google Cloud project. Turn it on in Google Cloud Console, then try again.");
       }
-      throw new UserError(`YouTube API error (${resp.status}): ${message}`);
+      throw new UserError(`YouTube returned an error (${resp.status}): ${message}`);
     }
     if (useCache) this.store.cacheSet(key, data);
     return data;

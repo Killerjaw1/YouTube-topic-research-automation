@@ -120,7 +120,7 @@ export class Engine {
 
   async testYouTube() {
     const key = this.store.getSecret("youtube_api_key");
-    if (!key) throw new UserError("No YouTube API key saved yet.");
+    if (!key) throw new UserError("There’s no YouTube API key yet. Add one in Settings, under YouTube data.");
     await new YouTubeClient(key, this.store).test();
     return { ok: true };
   }
@@ -233,7 +233,7 @@ export class Engine {
     if (text.trim().length < 2) throw new UserError("Enter your @handle or channel URL.");
     const yt = this.yt();
     const ch = await yt.channelLookup(text);
-    if (!ch) throw new UserError("Couldn't find that channel. Try the @handle or the channel URL.");
+    if (!ch) throw new UserError("That channel couldn’t be found. Check the @handle, or paste the channel URL.");
     const st = ch.statistics ?? {};
     const uploads = ch.contentDetails?.relatedPlaylists?.uploads;
     const recent = uploads ? await yt.recentUploads(uploads, 15) : [];
@@ -323,7 +323,7 @@ export class Engine {
 
   getScan(id: number): Scan {
     const scan = this.store.getScan(id);
-    if (!scan) throw new UserError("That report no longer exists.");
+    if (!scan) throw new UserError("That report was deleted. Open another one from History.");
     return scan;
   }
 
@@ -341,7 +341,7 @@ export class Engine {
   addIdea(data: Partial<Idea>) { return this.store.addIdea(data); }
   updateIdea(id: number, data: Partial<Idea>) {
     const idea = this.store.updateIdea(id, data);
-    if (!idea) throw new UserError("That idea no longer exists.");
+    if (!idea) throw new UserError("That idea was deleted. Refresh the idea board.");
     return idea;
   }
   deleteIdea(id: number) { this.store.deleteIdea(id); return { ok: true }; }

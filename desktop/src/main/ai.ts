@@ -130,19 +130,19 @@ async function call<T>(apiKey: string, prompt: string, schema: object): Promise<
       fallbacks: "default",
     });
   } catch (e) {
-    if (e instanceof Anthropic.AuthenticationError) throw new UserError("The Anthropic API key is not valid. Check it in Settings.");
-    if (e instanceof Anthropic.RateLimitError) throw new UserError("Anthropic rate limit reached. Wait a minute and try again.");
-    if (e instanceof Anthropic.APIConnectionError) throw new UserError("Could not reach the Anthropic API. Check your internet connection.");
-    if (e instanceof Anthropic.APIError) throw new UserError(`Anthropic API error (${e.status}): ${e.message}`);
+    if (e instanceof Anthropic.AuthenticationError) throw new UserError("Anthropic didn’t accept the API key. Check it in Settings, under AI assistant.");
+    if (e instanceof Anthropic.RateLimitError) throw new UserError("Anthropic is limiting requests right now. Wait a minute and try again.");
+    if (e instanceof Anthropic.APIConnectionError) throw new UserError("Anthropic couldn’t be reached. Check your internet connection and try again.");
+    if (e instanceof Anthropic.APIError) throw new UserError(`Anthropic returned an error (${e.status}): ${e.message}`);
     throw e;
   }
-  if (response.stop_reason === "refusal") throw new UserError("Claude declined to generate ideas for this topic.");
-  if (response.stop_reason === "max_tokens") throw new UserError("The AI response was cut off. Try again.");
+  if (response.stop_reason === "refusal") throw new UserError("Claude didn’t write suggestions for this topic. Try a different wording.");
+  if (response.stop_reason === "max_tokens") throw new UserError("Claude’s answer was cut off before it finished. Try again.");
   const text = response.content.find((b) => b.type === "text");
   try {
     return JSON.parse(text && "text" in text ? text.text : "") as T;
   } catch {
-    throw new UserError("The AI returned an unexpected response. Try again.");
+    throw new UserError("Claude’s answer couldn’t be read. Try again.");
   }
 }
 

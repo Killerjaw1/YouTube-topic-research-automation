@@ -13,15 +13,15 @@ import { mean, median, quartiles, round } from "./util";
 export const TAG_CHAR_LIMIT = 500; // YouTube's limit for all tags combined
 
 const PATTERNS: [string, string, RegExp][] = [
-  ["number", 'a number ("7 mistakes", "30 days")', /\d/],
+  ["number", 'a number (“7 mistakes”, “30 days”)', /\d/],
   ["question", "a question", /\?/],
-  ["first_person", 'first person ("I tried", "my")', /\b(i|i'm|i've|my|me)\b/i],
+  ["first_person", 'first person (“I tried”, “my”)', /\b(i|i'm|i've|my|me)\b/i],
   ["brackets", "brackets or parentheses", /[([]/],
-  ["versus", 'a comparison ("vs")', /\bvs\.?\b|\bversus\b/i],
+  ["versus", 'a comparison (“vs”)', /\bvs\.?\b|\bversus\b/i],
   ["year", "the year", /\b20\d\d\b/],
-  ["how_why", '"how" or "why"', /\b(how|why)\b/i],
+  ["how_why", '“how” or “why”', /\b(how|why)\b/i],
   ["caps_word", "one ALL-CAPS word for emphasis", /\b[A-Z]{3,}\b/],
-  ["negative", 'a warning ("mistakes", "don\'t", "stop")', /\b(mistakes?|don't|stop|never|wrong|avoid|worst)\b/i],
+  ["negative", 'a warning (“mistakes”, “don’t”, “stop”)', /\b(mistakes?|don't|stop|never|wrong|avoid|worst)\b/i],
   ["separator", "a colon or dash splitting topic and promise", /[:|–—-]/],
 ];
 
@@ -172,14 +172,14 @@ export function playbook(report: Report): Playbook | null {
   const m = report.metrics;
 
   const ctr = [
-    `Put "${report.keyword}" (or a close variant) in the first ~40 characters of the title, the part that never gets cut off on mobile.`,
+    `Put “${report.keyword}” (or a close variant) in the first ~40 characters of the title, the part that never gets cut off on mobile.`,
     `Keep the title around 40-60 characters. Top videos here average ${avgLen ?? 50}.`,
     "Thumbnail: one clear subject, 2-4 large words that add to the title rather than repeat it, and strong contrast. Check it at phone size before uploading.",
-    "Use YouTube Studio's thumbnail Test & Compare to A/B test 2-3 thumbnails on every upload.",
+    "Use YouTube Studio’s thumbnail Test & Compare to A/B test 2-3 thumbnails on every upload.",
     ...patterns.filter((p) => p.share >= 0.3).slice(0, 3).map((p) => `${Math.round(p.share * 100)}% of the winning titles use ${p.label}.`),
   ];
   if (Number(m.big_in_top10) >= 5) ctr.push("Large channels hold the broad version of this title. Make a narrower promise (a specific audience, budget, timeframe or result) instead of competing head-on.");
-  if (m.content_gap) ctr.push(`The top videos are old. Signal freshness with "${new Date().getFullYear()}" or "updated" in the title/thumbnail.`);
+  if (m.content_gap) ctr.push(`The top videos are old. Signal freshness with “${new Date().getFullYear()}” or “updated” in the title or thumbnail.`);
 
   const watch = [
     "Show the payoff or result in the first 5-15 seconds, then explain how you got there. No long intro or channel greeting.",
@@ -191,7 +191,7 @@ export function playbook(report: Report): Playbook | null {
   ];
   if (length.long) {
     const L = length.long;
-    watch.splice(1, 0, `Target length: about ${L.low_min}-${L.high_min} min. That's the typical range of the winning long-form videos (median ${L.median_min} min). Only go longer if every minute earns its place.`);
+    watch.splice(1, 0, `Target length: about ${L.low_min}-${L.high_min} min. That’s the typical range of the winning long-form videos (median ${L.median_min} min). Only go longer if every minute earns its place.`);
   }
   const shorts = [
     "Hook with on-screen text in the first second. Shorts viewers swipe within 1-2 seconds.",
@@ -202,7 +202,7 @@ export function playbook(report: Report): Playbook | null {
   const metadata = [
     "First 2 lines of the description (~150 characters) show in search. Make them a clear summary with the keyword.",
     "Use 3 hashtags at most. They appear above the title; more than 15 and YouTube ignores all of them.",
-    "Tags matter very little, mostly for misspellings. Don't spend time on them, but fill in the suggested set.",
+    "Tags matter very little, mostly for misspellings. Don’t spend time on them, but fill in the suggested set.",
     "Pin a comment with a specific question to start the comment section.",
     "Add the video to a playlist with similar videos to increase session time.",
   ];
@@ -245,7 +245,7 @@ export function checkDraft(draft: Draft, report?: Report | null): { score: numbe
   if (!title) add("Title", "fail", "No title yet.", "Write a title that makes a specific promise.");
   else {
     const n = title.length;
-    if (n > 100) add("Title", "fail", `Title is ${n} characters. YouTube's maximum is 100.`, "Cut it to 60 or fewer.");
+    if (n > 100) add("Title", "fail", `Title is ${n} characters. YouTube’s maximum is 100.`, "Cut it to 60 or fewer.");
     else if (n > 70) add("Title", "warn", `Title is ${n} characters. It gets cut off on most screens past ~60-70.`, "Move the hook to the front and trim.");
     else if (n < 25) add("Title", "warn", `Title is only ${n} characters. It may be too vague to earn the click.`, "Add the specific promise or result.");
     else add("Title", "pass", `Title length is good (${n} characters).`);
@@ -254,8 +254,8 @@ export function checkDraft(draft: Draft, report?: Report | null): { score: numbe
         const pos = title.toLowerCase().indexOf(kw.split(/\s+/)[0]);
         if (pos >= 0 && pos <= 40) add("Title", "pass", "Keyword appears early in the title.");
         else add("Title", "warn", "Keyword is in the title but late.", "Move it into the first ~40 characters.");
-      } else if (kwTokens.some((k) => tokens(title).includes(k))) add("Title", "warn", "Title only partially matches the keyword.", `Include "${kw}" or a close variant.`);
-      else add("Title", "fail", "Title doesn't contain the target keyword.", `Work "${kw}" into the title naturally.`);
+      } else if (kwTokens.some((k) => tokens(title).includes(k))) add("Title", "warn", "Title only partially matches the keyword.", `Include “${kw}” or a close variant.`);
+      else add("Title", "fail", "The title doesn’t contain the target keyword.", `Work “${kw}” into the title naturally.`);
     }
     const caps = (title.match(/[A-Za-z]{3,}/g) ?? []).filter((w) => w === w.toUpperCase()).length;
     if (caps > 2) add("Title", "warn", "Many ALL-CAPS words read as spammy.", "Use caps on one word at most.");
@@ -295,7 +295,7 @@ export function checkDraft(draft: Draft, report?: Report | null): { score: numbe
   else {
     if (total > TAG_CHAR_LIMIT) add("Tags", "fail", `Tags total ${total} characters (limit 500).`, "Remove the least relevant ones.");
     else add("Tags", "pass", `${tags.length} tags, ${total}/500 characters.`);
-    if (kw && !tags.map((t) => t.toLowerCase()).includes(kw)) add("Tags", "info", "Exact keyword isn't a tag.", `Add "${kw}" as the first tag.`);
+    if (kw && !tags.map((t) => t.toLowerCase()).includes(kw)) add("Tags", "info", "The exact keyword isn’t a tag.", `Add “${kw}” as the first tag.`);
   }
 
   // Length / format

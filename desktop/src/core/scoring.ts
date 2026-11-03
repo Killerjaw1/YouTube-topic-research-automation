@@ -227,7 +227,7 @@ export function analyze(keyword: string, rows: VideoRow[], s: Settings, recentRo
 
   if (breakouts.length) {
     const b = breakouts.reduce((a, x) => ((x.outlier ?? 0) > (a.outlier ?? 0) ? x : a));
-    reasons.push({ type: "good", text: `${breakouts.length} small-channel ${breakouts.length === 1 ? "video" : "videos"} broke out. The strongest, "${b.title.slice(0, 70)}", reached ${f(b.views)} views on a channel with ${f(b.subs)} subscribers (${fmtNum(b.outlier ?? 0)}×).` });
+    reasons.push({ type: "good", text: `${breakouts.length} small-channel ${breakouts.length === 1 ? "video" : "videos"} broke out. The strongest, “${b.title.slice(0, 70)}”, reached ${f(b.views)} views on a channel with ${f(b.subs)} subscribers (${fmtNum(b.outlier ?? 0)}×).` });
   } else {
     reasons.push({ type: "bad", text: "No small-channel videos are outperforming their subscriber count." });
   }

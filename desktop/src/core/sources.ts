@@ -29,7 +29,7 @@ export async function autocomplete(q: string, language = "en", region = "US", st
     try { text = new TextDecoder(charset).decode(buf); } catch { text = new TextDecoder().decode(buf); }
     data = JSON.parse(text);
   } catch (e: any) {
-    throw new UserError(`YouTube suggestions unavailable: ${e?.message ?? e}`);
+    throw new UserError(`YouTube search suggestions couldn’t be loaded (${e?.message ?? e}). Try again in a minute.`);
   }
   const out = Array.isArray(data) && Array.isArray(data[1]) ? (data[1] as unknown[]).filter((s): s is string => typeof s === "string") : [];
   store?.cacheSet(key, out);
@@ -76,18 +76,18 @@ export async function expand(seed: string, mode: "full" | "alphabet" | "question
 
 export async function redditTop(subreddit: string, period = "week", limit = 30): Promise<RedditPost[]> {
   const sub = subreddit.trim().replace(/^\/?r\//, "").replace(/\/+$/, "");
-  if (!/^\w+$/.test(sub)) throw new UserError("Enter a subreddit name like 'personalfinance'.");
+  if (!/^\w+$/.test(sub)) throw new UserError("Enter a subreddit name, such as personalfinance.");
   let resp: Response;
   try {
     resp = await fetch(`https://www.reddit.com/r/${sub}/top.json?t=${period}&limit=${limit}`, {
       headers: { "User-Agent": UA }, signal: AbortSignal.timeout(12000),
     });
   } catch (e: any) {
-    throw new UserError(`Reddit unavailable: ${e?.message ?? e}`);
+    throw new UserError(`Reddit couldn’t be reached (${e?.message ?? e}). Try again in a minute.`);
   }
-  if (resp.status === 403 || resp.status === 429) throw new UserError("Reddit is rate-limiting requests right now. Try again in a minute.");
-  if (resp.status === 404) throw new UserError(`r/${sub} doesn't exist or is private.`);
-  if (!resp.ok) throw new UserError(`Reddit unavailable (HTTP ${resp.status}).`);
+  if (resp.status === 403 || resp.status === 429) throw new UserError("Reddit is limiting requests right now. Try again in a minute.");
+  if (resp.status === 404) throw new UserError(`r/${sub} doesn’t exist or is private. Check the name and try again.`);
+  if (!resp.ok) throw new UserError(`Reddit returned an error (${resp.status}). Try again in a minute.`);
   const data: any = await resp.json();
   return (data?.data?.children ?? [])
     .map((c: any) => c.data ?? {})

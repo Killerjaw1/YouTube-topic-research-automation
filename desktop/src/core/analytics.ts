@@ -29,7 +29,7 @@ export const TRAFFIC_LABELS: Record<string, string> = {
 };
 
 export class NotConnected extends UserError {
-  constructor(msg = "YouTube Analytics isn't connected.") {
+  constructor(msg = "YouTube Analytics isn’t connected. Connect it in Settings.") {
     super(msg, "NotConnected");
   }
 }
@@ -91,13 +91,13 @@ export class Analytics {
   async finish(state: string, code: string) {
     const p = this.pending.get(state);
     this.pending.delete(state);
-    if (!p || Date.now() - p.t > 15 * 60 * 1000) throw new UserError("This sign-in link expired. Click Connect in NicheRadar again.");
+    if (!p || Date.now() - p.t > 15 * 60 * 1000) throw new UserError("This sign-in link has expired. Choose Connect with Google in NicheRadar to get a new one.");
     const [id, secret] = this.client();
     const resp = await fetch(TOKEN_URL, {
       method: "POST",
       body: new URLSearchParams({ client_id: id, client_secret: secret, code, grant_type: "authorization_code", redirect_uri: p.redirect, code_verifier: p.verifier }),
     });
-    if (!resp.ok) throw new UserError(`Google rejected the sign-in: ${(await resp.text()).slice(0, 200)}`);
+    if (!resp.ok) throw new UserError(`Google didn’t accept the sign-in. Check the client ID and secret in Settings. Details: ${(await resp.text()).slice(0, 200)}`);
     const tok: any = await resp.json();
     this.saveTokens({ access_token: tok.access_token, refresh_token: tok.refresh_token, expires_at: Date.now() + (tok.expires_in ?? 3600) * 1000 - 60000, scope: tok.scope });
     const info = await this.channelInfo();
@@ -148,7 +148,7 @@ export class Analytics {
       const text = await resp.text();
       let msg = text.slice(0, 200);
       try { msg = JSON.parse(text).error?.message ?? msg; } catch { /* keep text */ }
-      throw new UserError(`YouTube Analytics error (${resp.status}): ${msg}`);
+      throw new UserError(`YouTube Analytics returned an error (${resp.status}): ${msg}`);
     }
     return resp.json();
   }
@@ -162,7 +162,7 @@ export class Analytics {
   async channelInfo() {
     const data = await this.get(`${DATA_API}/channels`, { part: "snippet,statistics", mine: "true" });
     const ch = data.items?.[0];
-    if (!ch) throw new UserError("This Google account has no YouTube channel.");
+    if (!ch) throw new UserError("This Google account has no YouTube channel. Sign in with the account that owns your channel.");
     return { id: ch.id, title: ch.snippet.title, thumb: ch.snippet.thumbnails?.default?.url ?? "", subs: +(ch.statistics.subscriberCount ?? 0) };
   }
 
@@ -231,7 +231,7 @@ export function insights(ov: Overview): Insight[] {
     tips.push({ type: ch >= 0 ? "good" : "bad", text: `Views are ${ch >= 0 ? "up" : "down"} ${Math.abs(ch).toFixed(1)}% versus the previous ${ov.days} days.` });
   }
   const avp = t.averageViewPercentage ?? 0;
-  if (avp && avp < 35) tips.push({ type: "bad", text: `Viewers watch ${avp.toFixed(0)}% of your videos on average. That's low. Get to the point faster: show the payoff in the first 15 seconds and cut slow sections. Open a video's retention curve below to see where people leave.` });
+  if (avp && avp < 35) tips.push({ type: "bad", text: `Viewers watch ${avp.toFixed(0)}% of your videos on average. That’s low. Get to the point faster: show the payoff in the first 15 seconds and cut slow sections. Open a video’s retention curve below to see where people leave.` });
   else if (avp >= 50) tips.push({ type: "good", text: `Strong retention: viewers watch ${avp.toFixed(0)}% on average. YouTube rewards this. Your content holds attention, so focus on getting more clicks (titles and thumbnails).` });
   else if (avp) tips.push({ type: "info", text: `Average view percentage is ${avp.toFixed(0)}%. Aim for 50%+ with tighter intros and pattern interrupts.` });
 
@@ -245,11 +245,11 @@ export function insights(ov: Overview): Insight[] {
   if ((share.END_SCREEN ?? 0) < 0.02 && total > 500) tips.push({ type: "info", text: "End screens bring almost no views. Point every end screen at your best related video or a playlist." });
 
   const perK = (((t.subscribersGained ?? 0) - (t.subscribersLost ?? 0)) / views) * 1000;
-  tips.push({ type: perK >= 5 ? "good" : "info", text: `You gain ${perK.toFixed(1)} net subscribers per 1,000 views. ${perK >= 5 ? "That is a strong conversion rate." : "Give viewers a clear reason to subscribe mid-video (what's coming next), not only at the end."}` });
+  tips.push({ type: perK >= 5 ? "good" : "info", text: `You gain ${perK.toFixed(1)} net subscribers per 1,000 views. ${perK >= 5 ? "That is a strong conversion rate." : "Give viewers a clear reason to subscribe mid-video (what’s coming next), not only at the end."}` });
 
   if (ov.ctr?.ctr != null) {
     const c = ov.ctr.ctr <= 1 ? ov.ctr.ctr * 100 : ov.ctr.ctr;
-    if (c < 4) tips.push({ type: "bad", text: `Thumbnail click-through rate is ${c.toFixed(1)}%. Below ~4% means the thumbnail/title isn't earning clicks. Use bigger subjects, fewer words, stronger contrast, and test with Test & Compare.` });
+    if (c < 4) tips.push({ type: "bad", text: `Thumbnail click-through rate is ${c.toFixed(1)}%. Below ~4% means the thumbnail or title isn’t earning clicks. Use bigger subjects, fewer words, stronger contrast, and test with Test & Compare.` });
     else if (c >= 8) tips.push({ type: "good", text: `Thumbnail click-through rate is ${c.toFixed(1)}%, which is excellent for most niches.` });
     else tips.push({ type: "info", text: `Thumbnail click-through rate is ${c.toFixed(1)}%. Typical is 4-8%.` });
   }
@@ -258,9 +258,9 @@ export function insights(ov: Overview): Insight[] {
   if (vids.length >= 3) {
     const med = median(vids.map((v) => v.views));
     const best = vids.reduce((a, v) => (v.views > a.views ? v : a));
-    if (med && best.views >= 3 * med) tips.push({ type: "good", text: `"${String(best.title).slice(0, 70)}" got ${(best.views / med).toFixed(1)}× your typical views. Make a follow-up or a different angle on the same topic while it's hot.` });
+    if (med && best.views >= 3 * med) tips.push({ type: "good", text: `“${String(best.title).slice(0, 70)}” got ${(best.views / med).toFixed(1)}× your typical views. Make a follow-up or a different angle on the same topic while it’s hot.` });
     const weak = vids.find((v) => (v.averageViewPercentage ?? 100) < 25 && v.views > med);
-    if (weak) tips.push({ type: "bad", text: `"${String(weak.title).slice(0, 70)}" gets clicks but viewers leave early (${weak.averageViewPercentage.toFixed(0)}% watched). Check that the intro delivers what the title promises.` });
+    if (weak) tips.push({ type: "bad", text: `“${String(weak.title).slice(0, 70)}” gets clicks but viewers leave early (${weak.averageViewPercentage.toFixed(0)}% watched). Check that the intro delivers what the title promises.` });
   }
   return tips;
 }

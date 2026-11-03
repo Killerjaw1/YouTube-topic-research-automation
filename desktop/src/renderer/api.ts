@@ -76,7 +76,7 @@ export async function call<M extends EngineMethod>(method: M, ...args: Parameter
 export async function connectAnalytics() {
   if (!bridge) throw new ApiError("Connecting YouTube Analytics works in the desktop app.");
   const res = await bridge.connectAnalytics();
-  if (!res.ok) throw new ApiError(res.error ?? "Couldn't connect");
+  if (!res.ok) throw new ApiError(res.error ?? "NicheRadar couldn’t reach its engine. Restart the app and try again.");
   return res.data;
 }
 
