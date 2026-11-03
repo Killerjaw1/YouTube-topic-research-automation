@@ -719,6 +719,7 @@ details.howto a:hover { text-decoration: underline; }
   .titlebar .right .status { display: none; }
 }
 @media (max-width: 560px) {
+  .hide-sm { display: none; }
   .kpis, .kpis.three, .subscores { grid-template-columns: minmax(0, 1fr); }
   .kpi, .subscore { border-left: 0 !important; border-top: 1px solid var(--border-subtle); }
   .kpi:first-child, .subscore:first-child { border-top: 0; }
