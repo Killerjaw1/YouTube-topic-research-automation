@@ -685,7 +685,7 @@ details.howto a:hover { text-decoration: underline; }
     --ok-soft: rgba(26, 138, 69, 0.11); --warn-soft: rgba(168, 107, 0, 0.11); --danger-soft: rgba(209, 36, 47, 0.1); --idle-soft: rgba(138, 138, 148, 0.14);
     --bg-active: rgba(24, 24, 27, 0.065); --grid: #efeff1; --series-1: #2a78d6; --series-2: #1baf7a; --series-3: #eb6834;
   }
-  body { overflow: visible; background: var(--bg-app); }
+  html, body { overflow: visible; background: var(--bg-app); }
   .titlebar, .sidebar, .detail-panel, .no-print, .toasts, .report-actions, .search-card, .page-head .actions, .banner .actions { display: none !important; }
   .shell, .frame, .workspace { display: block; height: auto; }
   .main { overflow: visible; }

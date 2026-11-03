@@ -16,7 +16,9 @@ const IS_WIN = process.platform === "win32";
 let win: BrowserWindow | null = null;
 let engine: Engine;
 
-if (!app.requestSingleInstanceLock()) app.quit();
+// A second launch only focuses the open window; it must not start its own engine on the same data.
+const primary = app.requestSingleInstanceLock();
+if (!primary) app.quit();
 app.on("second-instance", () => {
   if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
 });
@@ -92,6 +94,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  if (!primary) return;
   Menu.setApplicationMenu(null);
   const dataDir = process.env.NICHERADAR_HOME || path.join(app.getPath("userData"), "data");
   engine = new Engine(new Store(new FilePersist(dataDir), osCipher(safeStorage)), { desktop: true, ai: claude });
@@ -131,8 +134,13 @@ app.whenReady().then(() => {
       filters: [{ name: "PDF", extensions: ["pdf"] }],
     });
     if (res.canceled || !res.filePath) return { ok: true, data: null };
-    const pdf = await win!.webContents.printToPDF({ printBackground: true, pageSize: "A4", margins: { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 } });
-    fs.writeFileSync(res.filePath, pdf);
+    // The page margins are filled with the window's background colour, so print on white.
+    const bg = win!.getBackgroundColor();
+    win!.setBackgroundColor("#ffffff");
+    try {
+      const pdf = await win!.webContents.printToPDF({ printBackground: true, pageSize: "A4", margins: { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 } });
+      fs.writeFileSync(res.filePath, pdf);
+    } finally { win!.setBackgroundColor(bg); }
     return { ok: true, data: res.filePath };
   });
 
