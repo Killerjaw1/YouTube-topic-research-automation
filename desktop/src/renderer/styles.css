@@ -294,6 +294,9 @@ textarea.input { height: auto; min-height: 88px; padding: var(--s2) var(--s3); r
   background-image: linear-gradient(45deg, transparent 50%, var(--text-3) 50%), linear-gradient(135deg, var(--text-3) 50%, transparent 50%);
   background-position: calc(100% - 15px) 50%, calc(100% - 11px) 50%; background-size: 4px 4px; background-repeat: no-repeat;
 }
+.input-group { display: flex; min-width: 0; }
+.input-group .prefix { display: grid; place-items: center; padding: 0 var(--s2) 0 var(--s3); height: var(--control-h); border: 1px solid var(--border-strong); border-right: 0; border-radius: var(--radius) 0 0 var(--radius); background: var(--bg-sunken); color: var(--text-3); }
+.input-group .input { flex: 1; border-radius: 0 var(--radius) var(--radius) 0; }
 label.field { display: grid; gap: 5px; font-size: var(--fs-sm); color: var(--text-2); font-weight: 500; }
 label.field .hint { color: var(--text-3); font-weight: 400; }
 .form-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--s3); }
