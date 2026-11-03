@@ -264,7 +264,7 @@ export function checkDraft(draft: Draft, report?: Report | null): { score: numbe
     else add("Title", "info", "No number, question or first-person hook.", "These patterns often lift CTR. Test one.");
     for (const p of (report?.playbook?.title_patterns ?? []).filter((x) => x.share >= 0.4).slice(0, 2)) {
       const rx = PATTERNS.find(([k]) => k === p.key)?.[2];
-      if (rx && !rx.test(title)) add("Title", "info", `${Math.round(p.share * 100)}% of winning titles for this topic use ${p.label}.Yours doesn't.`);
+      if (rx && !rx.test(title)) add("Title", "info", `${Math.round(p.share * 100)}% of winning titles for this topic use ${p.label}; yours doesn’t.`);
     }
   }
 

@@ -373,7 +373,7 @@ input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--accent);
 .card-toolbar { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; padding: var(--s3) 14px; border-bottom: 1px solid var(--border-subtle); }
 .section { display: grid; gap: var(--s3); }
 .section-label { display: block; margin: var(--s5) 0 var(--s2); }
-.section-label:first-child { margin-top: 0; }
+
 
 /* state card: icon + title + one line, in a tone */
 .state-card { display: flex; gap: var(--s3); align-items: flex-start; padding: var(--s3) var(--s4); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-raised); }

@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import type { AIMetadata, DraftCheck, Playbook, RetentionPlan } from "../../core/types";
 import { call } from "../api";
-import { Icon, type IconName } from "../components/Icon";
-import { Empty, Loading, PageHead, type Route, ScorePill, useApp } from "../components/ui";
+import { Button, Card, StateCard, Tag } from "../components/kit";
+import { Empty, Loading, PageHead, Reasons, type Route, ScorePill, useApp } from "../components/ui";
 import { store } from "../format";
 import { MetadataBlock } from "./Analyze";
 
 interface DraftForm { keyword: string; title: string; description: string; tags: string; format: "long" | "short"; minutes: string }
 interface CheckResult { score: number; checks: DraftCheck[]; playbook: Playbook | null; report: { keyword: string; score: number; verdict: string } | null }
 
-const ICON: Record<DraftCheck["status"], IconName> = { pass: "check", fail: "x", warn: "info", info: "info" };
-const CLS: Record<DraftCheck["status"], string> = { pass: "good", fail: "bad", warn: "bad", info: "info" };
+/** Check status → list item style (pass is good, fail is bad, warn is a warning, info is a tip). */
+const KIND: Record<DraftCheck["status"], "good" | "bad" | "warn" | "info"> = { pass: "good", fail: "bad", warn: "warn", info: "info" };
 
 export function OptimizerPage({ route }: { route: Route }) {
   const { status, toast, fail } = useApp();
@@ -32,73 +32,83 @@ export function OptimizerPage({ route }: { route: Route }) {
     timer.current = setTimeout(() => store("draft", next), 400);
   };
   const check = async (x = f) => {
-    try { setResult(await call("optimizeCheck", draft(x))); } catch (e) { fail(e); }
+    try { setResult(await call("optimizeCheck", draft(x))); } catch (e) { fail(e, "The draft couldn’t be checked"); }
   };
   useEffect(() => { if (f.title || f.description) check(); }, []); // eslint-disable-line
 
   const rewrite = async () => {
-    if (!status?.has_ai_key) return toast(status?.desktop ? "Add an Anthropic API key in Settings to use rewrites." : "Rewrites are available in the desktop app.", "err");
+    if (!status?.has_ai_key) {
+      return toast(status?.desktop ? "Add an Anthropic API key to rewrite drafts" : "Rewriting drafts needs the desktop app", "info",
+        status?.desktop ? "You can add one in Settings, under AI assistant." : undefined);
+    }
     setAI({ loading: true });
-    try { setAI({ data: await call("aiMetadata", draft()) }); } catch (e) { setAI({}); fail(e); }
+    try { setAI({ data: await call("aiMetadata", draft()) }); } catch (e) { setAI({}); fail(e, "The draft couldn’t be rewritten"); }
   };
 
   const groups = result ? [...new Set(result.checks.map((c) => c.group))] : [];
+  const problems = result ? result.checks.filter((c) => c.status === "fail" || c.status === "warn").length : 0;
+  const summary = result && (result.score >= 85
+    ? { tone: "ok" as const, title: "Ready to upload", text: "Nothing important is missing." }
+    : result.score >= 55
+      ? { tone: "warn" as const, title: `${problems} ${problems === 1 ? "fix" : "fixes"} suggested`, text: "Work through the items marked below, then check again." }
+      : { tone: "danger" as const, title: "Needs work before upload", text: `${problems} ${problems === 1 ? "item needs" : "items need"} attention.` });
+
   return (
     <>
-      <PageHead title="Upload optimizer" desc={`Check a draft title, description and tags against click-through and watch-time best practices${f.keyword ? ", and against what ranks for your topic" : ""}.`} />
+      <PageHead title="Upload optimizer" desc={`Check a draft title, description and tags against what helps click-through and watch time${f.keyword ? ", and against what ranks for your topic" : ""}.`}>
+        <Button icon="wand" busy={ai.loading} onClick={rewrite}>Rewrite with Claude</Button>
+        <Button variant="primary" icon="check" onClick={() => check()}>Check draft</Button>
+      </PageHead>
       <div className="grid g-report">
-        <div className="card">
-          <form className="stack" style={{ gap: 14 }} autoComplete="off" onSubmit={(e) => { e.preventDefault(); check(); }}>
+        <Card>
+          <form className="stack" autoComplete="off" onSubmit={(e) => { e.preventDefault(); check(); }}>
             <div className="form-row">
-              <label className="field">Target keyword<input className="input" value={f.keyword} onChange={set("keyword")} placeholder="what viewers search" /></label>
+              <label className="field">Target keyword<input className="input" value={f.keyword} onChange={set("keyword")} placeholder="What viewers search for" /></label>
               <label className="field">Format<select className="select" value={f.format} onChange={set("format")}><option value="long">Long-form</option><option value="short">Short</option></select></label>
-              <label className="field"><span>Length <span className="hint">(minutes)</span></span><input className="input" type="number" step="0.5" min="0" value={f.minutes} onChange={set("minutes")} /></label>
+              <label className="field"><span>Length <span className="hint">minutes</span></span><input className="input" type="number" step="0.5" min="0" value={f.minutes} onChange={set("minutes")} /></label>
             </div>
-            <label className="field"><span>Title <span className="hint">{f.title.length ? `${f.title.length}/100 · ideal 40–60` : ""}</span></span>
+            <label className="field"><span>Title <span className="hint">{f.title.length ? `${f.title.length} of 100 characters · 40–60 works best` : ""}</span></span>
               <input className="input" maxLength={100} value={f.title} onChange={set("title")} placeholder="Your draft title" /></label>
             <label className="field">Description<textarea className="input" rows={9} value={f.description} onChange={set("description")} placeholder="Your draft description" /></label>
-            <label className="field"><span>Tags <span className="hint">(comma separated)</span></span><input className="input" value={f.tags} onChange={set("tags")} /></label>
-            <div className="row" style={{ justifyContent: "flex-end" }}>
-              <button type="button" className="btn" onClick={rewrite} disabled={ai.loading}><Icon name="wand" />Rewrite with Claude</button>
-              <button className="btn primary">Check draft</button>
-            </div>
+            <label className="field"><span>Tags <span className="hint">separate with commas</span></span><input className="input" value={f.tags} onChange={set("tags")} /></label>
+            <p className="secondary" style={{ margin: 0 }}>Your draft is kept on this computer until you change it.</p>
           </form>
-        </div>
-        <div>
-          {!result ? <Empty icon="wand" title="No draft checked yet">Enter what you have so far and choose Check draft to get a score with specific fixes.</Empty> : (
-            <div className="card">
-              <div className="row" style={{ gap: 16, marginBottom: 14 }}>
+        </Card>
+        <div className="stack">
+          {!result ? <Empty icon="wand" title="No draft checked yet">Fill in what you have so far and choose Check draft. You’ll get a score and specific fixes.</Empty> : <>
+            <Card>
+              <div className="row nowrap">
                 <ScorePill score={result.score} big />
-                <div><h3>Draft score</h3><p className="sub" style={{ margin: 0 }}>{result.report ? `Includes topic benchmarks from your analysis of “${result.report.keyword}”.`
-                  : "Best-practice checks only. Analyze the keyword to add topic benchmarks."}</p></div>
+                <div className="grow"><h2 className="h2">Draft score</h2><div className="secondary">{result.report ? `Compared with your analysis of “${result.report.keyword}”.`
+                  : "General checks only. Analyze the keyword to compare with what ranks."}</div></div>
               </div>
+              {summary && <div className="mt"><StateCard tone={summary.tone} title={summary.title}>{summary.text}</StateCard></div>}
               {groups.map((g) => (
                 <div key={g}>
-                  <div className="section-title">{g}</div>
-                  <ul className="reasons">{result.checks.filter((c) => c.group === g).map((c, i) => (
-                    <li key={i} className={CLS[c.status]}><Icon name={ICON[c.status]} /><span>{c.text}{c.fix && <span className="fix">{c.fix}</span>}</span></li>
-                  ))}</ul>
+                  <span className="section-label">{g}</span>
+                  <Reasons items={result.checks.filter((c) => c.group === g).map((c) => ({ type: KIND[c.status], text: c.text, fix: c.fix }))} />
                 </div>
               ))}
-              {result.playbook && <>
-                <div className="section-title">Suggested titles for this topic</div>
+            </Card>
+            {result.playbook && (
+              <Card title="Title ideas for this topic" sub="Choose one to try it in your draft.">
                 <div className="chips">
-                  {result.playbook.titles.slice(0, 3).map((t) => (
+                  {result.playbook.titles.slice(0, 4).map((t) => (
                     <button key={t} className="chip" onClick={() => { const next = { ...f, title: t }; setF(next); check(next); }}>{t}</button>
                   ))}
                 </div>
-              </>}
-            </div>
-          )}
+              </Card>
+            )}
+          </>}
         </div>
       </div>
-      {ai.loading && <div style={{ marginTop: 16 }}><Loading title="Reviewing your draft" rows={5} /></div>}
+      {ai.loading && <div className="mt"><Loading title="Rewriting your draft" rows={5} /></div>}
       {ai.data && (
-        <div className="card" style={{ marginTop: 16 }}>
-          <div className="row between"><h3>Review and rewrite</h3><span className="badge outline">Generated with Claude</span></div>
-          <ul className="reasons" style={{ marginTop: 12 }}>{ai.data.feedback.map((x) => <li key={x} className="info"><Icon name="info" /><span>{x}</span></li>)}</ul>
+        <Card className="mt" title="Review and rewrite" actions={<Tag>Written by Claude</Tag>}>
+          <Reasons items={ai.data.feedback.map((x) => ({ type: "info" as const, text: x }))} />
+          <div className="sep" />
           <MetadataBlock md={ai.data.metadata} plan={ai.data.retention_plan} />
-        </div>
+        </Card>
       )}
     </>
   );
