@@ -1,0 +1,43 @@
+{
+  "name": "nicheradar",
+  "productName": "NicheRadar",
+  "version": "1.0.0",
+  "description": "Find YouTube topics a small channel can actually win, then optimise the upload.",
+  "author": "NicheRadar",
+  "license": "MIT",
+  "private": true,
+  "main": "dist/main/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "web": "vite --config vite.config.ts --mode web",
+    "build": "vite build --config vite.config.ts && node scripts/build-main.mjs",
+    "start": "npm run build && electron .",
+    "dist": "npm run build && electron-builder --win nsis --publish never",
+    "dist:dir": "npm run build && electron-builder --dir --publish never",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "selftest": "tsx scripts/selftest.ts",
+    "icon": "python scripts/make-icon.py"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "electron": "^45.2.1",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/killerjaw1/youtube-topic-research-automation.git"
+  }
+}

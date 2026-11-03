@@ -1,0 +1,29 @@
+appId: app.nicheradar.desktop
+productName: NicheRadar
+copyright: NicheRadar
+directories:
+  output: dist-installer
+  buildResources: build
+files:
+  - dist/**/*
+  - build/icon.png
+  - package.json
+  - "!**/*.map"
+asar: true
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+  artifactName: NicheRadar-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: NicheRadar
+linux:
+  target: [tar.gz]
+  category: Utility
+  artifactName: NicheRadar-${version}-linux-x64.${ext}
