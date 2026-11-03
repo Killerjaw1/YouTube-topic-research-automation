@@ -120,16 +120,17 @@ export function Scatter({ videos, smallMax, bigMin }: { videos: VideoRow[]; smal
 }
 
 /** Bar chart: the latest bar in full accent, earlier bars at 50%, the value above the tallest bar. */
-export function BarChart({ data, unit = "views", latestLabel = "Latest day", earlierLabel = "Earlier days" }:
-  { data: { label: string; value: number; tip: ReactNode }[]; unit?: string; latestLabel?: string; earlierLabel?: string }) {
+export function BarChart({ data, unit = "views", latestLabel = "Latest day", earlierLabel = "Earlier days", compact }:
+  { data: { label: string; value: number; tip: ReactNode }[]; unit?: string; latestLabel?: string; earlierLabel?: string; compact?: boolean }) {
   const { tip } = useApp();
   if (!data.length) return <div className="empty-state"><b>No data for this period</b></div>;
-  const W = 720, H = 210, ml = 40, mb = 24, mt = 20, mr = 4;
+  // Compact charts (detail panel) use a smaller canvas so text stays at 11px when scaled.
+  const W = compact ? 380 : 720, H = compact ? 150 : 210, ml = 32, mb = 22, mt = 20, mr = 4;
   const max = Math.max(...data.map((d) => d.value), 1);
   const nice = 10 ** Math.floor(Math.log10(max)), top = Math.ceil(max / nice) * nice;
-  const bw = (W - ml - mr) / data.length, gap = Math.min(4, bw * 0.25);
+  const bw = (W - ml - mr) / data.length, gap = Math.max(Math.min(4, bw * 0.25), bw - 36);
   const Y = (v: number) => H - mb - (v / top) * (H - mt - mb);
-  const step = Math.ceil(data.length / 7);
+  const step = Math.ceil(data.length / (compact ? 4 : 7));
   const peak = data.reduce((a, d, i) => (d.value > data[a].value ? i : a), 0);
   return (
     <div className="chart">
@@ -143,7 +144,7 @@ export function BarChart({ data, unit = "views", latestLabel = "Latest day", ear
             const r = Math.min(3, w / 2, h);
             const path = h > 0 ? `M${x} ${H - mb} V${y + r} Q${x} ${y} ${x + r} ${y} H${x + w - r} Q${x + w} ${y} ${x + w} ${y + r} V${H - mb} Z` : "";
             return (
-              <g key={d.label} onMouseEnter={(e) => tip.show(d.tip, e)} onMouseMove={tip.move} onMouseLeave={tip.hide}>
+              <g key={i} onMouseEnter={(e) => tip.show(d.tip, e)} onMouseMove={tip.move} onMouseLeave={tip.hide}>
                 <rect x={ml + i * bw} y={mt} width={bw} height={H - mt - mb} fill="transparent" />
                 <path className={`bar ${i === data.length - 1 ? "current" : ""}`} d={path} />
                 {i === peak && <text className="value-label" x={x + w / 2} y={y - 6} textAnchor="middle">{fmt(d.value)}</text>}
