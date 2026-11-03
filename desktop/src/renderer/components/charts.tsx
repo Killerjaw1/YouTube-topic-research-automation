@@ -160,12 +160,12 @@ export function BarChart({ data, unit = "views", latestLabel = "Latest day", ear
 }
 
 /** Audience retention curve with crosshair + tooltip. */
-export function RetentionChart({ points, durationS }: { points: { x: number; y: number }[]; durationS?: number }) {
+export function RetentionChart({ points, durationS, compact }: { points: { x: number; y: number }[]; durationS?: number; compact?: boolean }) {
   const { tip } = useApp();
   const svgRef = useRef<SVGSVGElement>(null);
   const [cur, setCur] = useState<{ x: number; y: number } | null>(null);
   if (!points.length) return <div className="empty-state"><b>No retention data yet</b><p>YouTube needs more views before it can show this.</p></div>;
-  const W = 760, H = 260, ml = 44, mr = 10, mt = 10, mb = 28;
+  const W = compact ? 380 : 760, H = compact ? 190 : 260, ml = 38, mr = 8, mt = 10, mb = 24;
   const ymax = Math.max(1, ...points.map((p) => p.y)) * 1.05;
   const X = (x: number) => ml + x * (W - ml - mr), Y = (y: number) => H - mb - (y / ymax) * (H - mt - mb);
   const d = points.map((p, i) => `${i ? "L" : "M"}${X(p.x).toFixed(1)} ${Y(p.y).toFixed(1)}`).join(" ");
