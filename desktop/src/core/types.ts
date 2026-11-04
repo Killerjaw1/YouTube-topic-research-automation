@@ -35,6 +35,20 @@ export interface Settings {
   analytics_channel: { id: string; title: string; thumb: string; subs: number } | null;
   auto_update: boolean;
   onboarded: boolean;
+  /** Re-score the watchlist once a week while the desktop app is open. */
+  weekly_check: boolean;
+  /** When the weekly check last ran (seconds since epoch), or 0. */
+  last_weekly_check: number;
+}
+
+export interface WeeklyCheckResult {
+  ran: boolean;
+  /** Why it didn't run: not_enabled, not_due, sample_data, nothing_tracked or low_quota. */
+  skipped?: string;
+  checked: number;
+  /** Topics whose score rose by 5 or more, or that crossed into the good range (55+). */
+  improved: { keyword: string; from: number; to: number }[];
+  dropped: { keyword: string; from: number; to: number }[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -52,6 +66,8 @@ export const DEFAULT_SETTINGS: Settings = {
   analytics_channel: null,
   auto_update: true,
   onboarded: false,
+  weekly_check: false,
+  last_weekly_check: 0,
 };
 
 /** Values kept apart from settings and encrypted at rest in the desktop app. */

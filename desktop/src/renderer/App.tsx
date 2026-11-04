@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { isWindows, type UpdateState, updates } from "./api";
+import { isWindows, onAppEvent, type UpdateState, updates } from "./api";
 import { CommandPalette, type NavItem } from "./components/CommandPalette";
 import { Icon } from "./components/Icon";
 import { Button, Dialog, Status, type Tone } from "./components/kit";
@@ -105,6 +105,11 @@ export function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
   useEffect(() => { if (status && onboarding === null) setOnboarding(!status.onboarded); }, [status, onboarding]);
+  // The main process asks to open a page (a notification was clicked) or to reload counts (the weekly check ran).
+  useEffect(() => onAppEvent((e) => {
+    if (e.type === "navigate") location.hash = e.hash;
+    else if (e.type === "refresh") refresh();
+  }), [refresh]);
 
   // Global keyboard shortcuts.
   useEffect(() => {

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Tracked } from "../../core/types";
 import { call } from "../api";
 import { BarChart, Sparkline } from "../components/charts";
-import { Button, Card, DetailPanel, Facts, StateCard } from "../components/kit";
+import { Button, Card, DetailPanel, Facts, StateCard, Switch } from "../components/kit";
 import { Delta, DemoBanner, Empty, go, PageHead, ScorePill, useApp, Verdict } from "../components/ui";
 import { ago } from "../format";
 
@@ -16,6 +16,15 @@ export function WatchlistPage() {
   const cancel = useRef(false);
   const load = useCallback(() => call("listTracked").then((t) => { setItems(t); return t; }).catch((e) => { fail(e); return [] as Tracked[]; }), [fail]);
   useEffect(() => { load(); }, [load]);
+  const [weekly, setWeekly] = useState<{ on: boolean; last: number } | null>(null);
+  useEffect(() => { call("getSettings").then((s) => setWeekly({ on: s.weekly_check, last: s.last_weekly_check })).catch(() => undefined); }, []);
+  const setWeeklyOn = async (on: boolean) => {
+    try {
+      const s = await call("saveSettings", { weekly_check: on });
+      setWeekly({ on: s.weekly_check, last: s.last_weekly_check });
+      toast(on ? "Weekly check turned on" : "Weekly check turned off", "ok", on ? "Your topics are re-scored once a week while NicheRadar is open." : undefined);
+    } catch (e) { fail(e, "The setting wasn’t saved"); }
+  };
 
   const refreshOne = async (k: string) => {
     setBusy(k);
@@ -98,6 +107,17 @@ export function WatchlistPage() {
           <input className="input grow" placeholder="Add a topic to track" value={adding} onChange={(e) => setAdding(e.target.value)} aria-label="Topic to track" />
           <Button type="submit" icon="plus" disabled={!adding.trim()}>Track topic</Button>
         </form>
+        {weekly && (
+          <div className="row nowrap mt" style={{ alignItems: "flex-start", paddingTop: "var(--s3)", borderTop: "1px solid var(--border-subtle)" }}>
+            <div className="grow" style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 600 }}>Check every week</div>
+              <div className="secondary">{status?.desktop
+                ? `Re-scores your tracked topics once a week while NicheRadar is open, using about 102 quota units each${items.length ? ` (about ${items.length * 102} for ${items.length})` : ""}. You get a notification when a topic improves.${weekly.last ? ` Last weekly check ${ago(weekly.last, true)}.` : ""}`
+                : "Available in the desktop app."}</div>
+            </div>
+            <Switch label="Check every week" checked={weekly.on} disabled={!status?.desktop} onChange={setWeeklyOn} />
+          </div>
+        )}
         {progress && (
           <div className="row mt-sm">
             <div className="progress-line grow"><i style={{ width: `${(progress.done / progress.total) * 100}%` }} /></div>

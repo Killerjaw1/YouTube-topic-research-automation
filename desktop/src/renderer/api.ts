@@ -25,8 +25,11 @@ interface Bridge {
     install(): Promise<unknown>;
     onChange(cb: (s: UpdateState) => void): () => void;
   };
+  onEvent?(cb: (e: AppEvent) => void): () => void;
   platform: string;
 }
+
+export type AppEvent = { type: "navigate"; hash: string } | { type: "refresh" };
 
 export type UpdateState =
   | { state: "idle" | "checking" | "none" | "unsupported" }
@@ -118,6 +121,11 @@ export const updates = {
   install() { bridge?.updates.install(); },
   onChange(cb: (s: UpdateState) => void) { return bridge ? bridge.updates.onChange(cb) : () => undefined; },
 };
+
+/** Listen for messages from the desktop app's main process (such as a notification being clicked). */
+export function onAppEvent(cb: (e: AppEvent) => void): () => void {
+  return bridge?.onEvent ? bridge.onEvent(cb) : () => undefined;
+}
 
 export async function appVersion(): Promise<string> {
   if (!bridge) return "web preview";

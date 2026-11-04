@@ -8,7 +8,7 @@ import { useConnectAnalytics } from "./Analytics";
 import { REGIONS } from "./Trending";
 
 const LINK = (href: string, text: string) => <a href={href} target="_blank" rel="noopener">{text}</a>;
-const SECTIONS: [string, string][] = [["youtube", "YouTube data"], ["channel", "Your channel"], ["analytics", "YouTube Analytics"], ["research", "Research"],
+const SECTIONS: [string, string][] = [["youtube", "YouTube data"], ["channel", "Your channel"], ["analytics", "YouTube Analytics"], ["research", "Research"], ["watchlist", "Watchlist"],
   ["ai", "AI assistant"], ["appearance", "Appearance"], ["updates", "Updates"], ["data", "Data and privacy"]];
 const RESEARCH_KEYS = ["region", "language", "small_channel_max", "big_channel_min", "fresh_days", "cache_hours", "daily_quota"] as const;
 
@@ -189,6 +189,12 @@ export function SettingsPage() {
             await save(patch);
           })}>Save changes</Button>
         </div>
+      </SettingsGroup>
+
+      <SettingsGroup id="s-watchlist" title="Watchlist">
+        <SettingRow title="Check every week" desc="Re-scores tracked topics once a week while NicheRadar is open, about 102 quota units each, and notifies you when one improves.">
+          <Switch label="Check the watchlist every week" checked={s.weekly_check} disabled={!isDesktop} onChange={(v) => save({ weekly_check: v }, v ? "Weekly check turned on" : "Weekly check turned off")} />
+        </SettingRow>
       </SettingsGroup>
 
       <SettingsGroup id="s-ai" title="AI assistant" desc="Optional. Uses Claude to suggest angles, write metadata and plan retention from your research. Requests are billed to your Anthropic account.">

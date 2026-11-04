@@ -192,6 +192,22 @@ async function main() {
     engine.untrack("INDOOR PLANTS");
     assert.equal(engine.listTracked().length, 0);
   });
+  await test("Weekly check: off by default, runs once a week, records each topic", async () => {
+    assert.equal((await engine.weeklyCheck()).skipped, "not_enabled");
+    engine.saveSettings({ weekly_check: true });
+    assert.equal((await engine.weeklyCheck()).skipped, "sample_data", "never spends quota on sample data by itself");
+    const r1 = await engine.analyze("retro game bugs");
+    engine.track("retro game bugs", r1.scan_id);
+    const now = Date.now() / 1000;
+    const run = await engine.weeklyCheck({ now, allowSample: true });
+    assert.ok(run.ran && run.checked === 1);
+    assert.equal(engine.listTracked().find((t) => t.keyword === "retro game bugs")!.history.length, 2);
+    assert.equal(engine.getSettings().last_weekly_check, now);
+    assert.equal((await engine.weeklyCheck({ now: now + 86400, allowSample: true })).skipped, "not_due");
+    assert.ok((await engine.weeklyCheck({ now: now + 8 * 86400, allowSample: true })).ran, "due again after 7 days");
+    engine.untrack("retro game bugs");
+    engine.saveSettings({ weekly_check: false });
+  });
   await test("Format focus: Shorts-only and long-form-only scoring", async () => {
     const s = await engine.analyze("pac man secrets", "quick", "short");
     assert.equal(s.focus, "short");

@@ -11,7 +11,7 @@ import { autocomplete, expand, redditTop } from "./sources";
 import type { Store } from "./store";
 import {
   type AIAngles, type AIMetadata, type Candidate, type Focus, type Idea, IDEA_STATUSES, type MyChannel, type OutlierResult, type PublicSettings,
-  type RedditPost, type Report, type RetentionPlan, type Scan, type ScanMeta, type Settings, type Status, type Tracked, UserError, type VideoRow,
+  type RedditPost, type Report, type WeeklyCheckResult, type RetentionPlan, type Scan, type ScanMeta, type Settings, type Status, type Tracked, UserError, type VideoRow,
 } from "./types";
 import { csv, median, round } from "./util";
 import { publishedAfterDays, YouTubeClient, type YouTubeSource } from "./youtube";
@@ -107,7 +107,7 @@ export class Engine {
     for (const k of ["small_channel_max", "big_channel_min", "daily_quota", "fresh_days", "cache_hours"] as const) {
       if (patch[k] !== undefined && num(patch[k])) (clean as any)[k] = num(patch[k]);
     }
-    for (const k of ["demo_mode", "auto_small_threshold", "auto_update", "onboarded"] as const) if (patch[k] !== undefined) clean[k] = Boolean(patch[k]);
+    for (const k of ["demo_mode", "auto_small_threshold", "auto_update", "onboarded", "weekly_check"] as const) if (patch[k] !== undefined) clean[k] = Boolean(patch[k]);
     if (patch.google_client_id !== undefined) clean.google_client_id = String(patch.google_client_id).trim();
     this.store.updateSettings(clean);
     return this.getSettings();
@@ -204,6 +204,37 @@ export class Engine {
     const focus = (last && (this.store.getScan(last.scan_id)?.payload as Report | undefined)?.focus) || "all";
     await this.analyze(keyword, "quick", focus);
     return this.store.listTracked().find((t) => t.keyword === keyword.trim().toLowerCase());
+  }
+
+  /**
+   * The weekly watchlist check: re-scores every tracked topic once seven days have passed since the last run.
+   * Skips sample data (unless allowSample) and stops before using more quota than today has left.
+   */
+  async weeklyCheck(o: { now?: number; force?: boolean; allowSample?: boolean } = {}): Promise<WeeklyCheckResult> {
+    const s = this.settings, now = o.now ?? Date.now() / 1000;
+    const skip = (skipped: string): WeeklyCheckResult => ({ ran: false, skipped, checked: 0, improved: [], dropped: [] });
+    if (!s.weekly_check && !o.force) return skip("not_enabled");
+    if (!o.force && now - (s.last_weekly_check || 0) < 7 * 86400) return skip("not_due");
+    if (this.isDemo() && !o.allowSample) return skip("sample_data");
+    const tracked = this.store.listTracked();
+    if (!tracked.length) return skip("nothing_tracked");
+    if (!this.isDemo() && s.daily_quota - this.store.quotaUsed() < tracked.length * 110) return skip("low_quota");
+    const result: WeeklyCheckResult = { ran: true, checked: 0, improved: [], dropped: [] };
+    for (const t of tracked) {
+      const from = t.history[t.history.length - 1]?.score;
+      try {
+        const after = await this.refreshTracked(t.keyword);
+        const to = after?.history[after.history.length - 1]?.score;
+        result.checked++;
+        if (from == null || to == null) continue;
+        if (to - from >= 5 || (from < 55 && to >= 55)) result.improved.push({ keyword: t.keyword, from, to });
+        else if (from - to >= 5) result.dropped.push({ keyword: t.keyword, from, to });
+      } catch (e: any) {
+        if (/quota|key/i.test(String(e?.message))) break;
+      }
+    }
+    this.store.updateSettings({ last_weekly_check: now });
+    return result;
   }
 
   async discover(seed: string, mode: "full" | "alphabet" | "questions" = "full"): Promise<Candidate[]> {

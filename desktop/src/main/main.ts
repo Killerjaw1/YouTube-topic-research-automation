@@ -1,6 +1,6 @@
 /** Electron main process: window, IPC bridge to the engine, files, PDF export, Google sign-in, updates. */
 
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, safeStorage, screen, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, Notification, safeStorage, screen, shell } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { Engine, ENGINE_METHODS, type EngineMethod } from "../core/engine";
@@ -163,10 +163,44 @@ app.whenReady().then(() => {
 
   ipcMain.handle("app-info", () => ({ ok: true, data: { version: app.getVersion(), platform: process.platform, packaged: app.isPackaged } }));
 
+  if (IS_WIN) app.setAppUserModelId("app.nicheradar.desktop"); // notifications show under the app's name
   createWindow();
   setupUpdates(() => win, () => engine.store.getSettings().auto_update);
+  // Weekly watchlist check: a minute after start, then every 6 hours while the app is open. It only runs once 7 days have passed.
+  setTimeout(runWeeklyCheck, 60_000);
+  setInterval(runWeeklyCheck, 6 * 3600_000);
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
+
+let weeklyRunning = false;
+async function runWeeklyCheck() {
+  if (weeklyRunning || !engine) return;
+  weeklyRunning = true;
+  try {
+    const r = await engine.weeklyCheck();
+    if (!r.ran) return;
+    win?.webContents.send("app-event", { type: "refresh" });
+    if (!r.improved.length || !Notification.isSupported()) return;
+    const [first] = [...r.improved].sort((a, b) => b.to - b.from - (a.to - a.from));
+    const more = r.improved.length - 1;
+    const n = new Notification({
+      title: r.improved.length === 1 ? "A tracked topic improved" : `${r.improved.length} tracked topics improved`,
+      body: `“${first.keyword}” went from ${first.from} to ${first.to}.${more ? ` ${more} more in your watchlist.` : ""}`,
+      icon: path.join(__dirname, "../../build/icon.png"),
+    });
+    n.on("click", () => {
+      if (!win) return;
+      if (win.isMinimized()) win.restore();
+      win.show(); win.focus();
+      win.webContents.send("app-event", { type: "navigate", hash: "#/watchlist" });
+    });
+    n.show();
+  } catch (e) {
+    console.error("weekly check", e);
+  } finally {
+    weeklyRunning = false;
+  }
+}
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

@@ -21,5 +21,11 @@ contextBridge.exposeInMainWorld("nicheradar", {
       return () => ipcRenderer.removeListener("update", fn);
     },
   },
+  /** Messages from the main process: { type: "navigate", hash } or { type: "refresh" }. */
+  onEvent: (cb: (e: unknown) => void) => {
+    const fn = (_e: unknown, ev: unknown) => cb(ev);
+    ipcRenderer.on("app-event", fn);
+    return () => ipcRenderer.removeListener("app-event", fn);
+  },
   platform: process.platform,
 });
