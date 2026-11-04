@@ -5,18 +5,24 @@ import { ideaModal } from "../components/IdeaModal";
 import { Button, Card, Dialog, ListRow, Tag } from "../components/kit";
 import { analyzeLink, DemoBanner, Empty, FormatBadge, go, Loading, PageHead, type Route, ScorePill, useApp, Verdict } from "../components/ui";
 import { fmt, store } from "../format";
+import { OnThisDayTab, QuestionsTab, RisingTab } from "./DiscoverMore";
+
+const TABS: [string, string][] = [["youtube", "Search suggestions"], ["questions", "Viewer questions"], ["onthisday", "On this day"], ["rising", "Rising on Wikipedia"], ["reddit", "Reddit"]];
 
 export function DiscoverPage({ route }: { route: Route }) {
   const tab = route.params.get("tab") ?? "youtube";
   return (
     <>
-      <PageHead title="Discover ideas" desc="Find specific search phrases around a niche, then score the ones worth making. Finding phrases is free; each score uses about 102 quota units." />
+      <PageHead title="Discover ideas" desc="Find video ideas in what people search for, ask in comments, read about and discuss. Scoring an idea uses about 102 quota units." />
       <DemoBanner />
-      <div className="tabs" role="tablist">
-        <button role="tab" aria-selected={tab === "youtube"} onClick={() => go("#/discover?tab=youtube")}>YouTube search suggestions</button>
-        <button role="tab" aria-selected={tab === "reddit"} onClick={() => go("#/discover?tab=reddit")}>Reddit</button>
+      <div className="tabs" role="tablist" aria-label="Idea sources">
+        {TABS.map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} onClick={() => go(`#/discover?tab=${id}`)}>{label}</button>)}
       </div>
-      {tab === "reddit" ? <RedditTab sub={route.params.get("sub") ?? ""} /> : <YouTubeTab seed={route.params.get("seed") ?? ""} initialMode={route.params.get("mode")} />}
+      {tab === "reddit" ? <RedditTab sub={route.params.get("sub") ?? ""} />
+        : tab === "questions" ? <QuestionsTab />
+        : tab === "onthisday" ? <OnThisDayTab />
+        : tab === "rising" ? <RisingTab />
+        : <YouTubeTab seed={route.params.get("seed") ?? ""} initialMode={route.params.get("mode")} />}
     </>
   );
 }

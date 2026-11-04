@@ -1,7 +1,8 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
+import type { SimilarUpload } from "../../core/ideas";
 import { type Idea, IDEA_STATUSES } from "../../core/types";
 import { call } from "../api";
-import { Button, Dialog } from "./kit";
+import { Button, Dialog, StateCard } from "./kit";
 import { ScorePill, useApp } from "./ui";
 
 /** Idea stages, each with a muted category colour used for its tag and column marker. */
@@ -11,6 +12,27 @@ export const STATUS_META: Record<string, [string, string]> = {
 };
 
 type ModalFn = (render: (close: () => void) => ReactNode) => void;
+
+/** Your uploads that already cover `text` (checked after typing pauses; needs your channel in Settings). */
+export function useAlreadyMade(text: string): SimilarUpload[] {
+  const [items, setItems] = useState<SimilarUpload[]>([]);
+  useEffect(() => {
+    if (text.trim().length < 4) { setItems([]); return; }
+    let live = true;
+    const t = setTimeout(() => call("alreadyMade", text).then((r) => live && setItems(r)).catch(() => undefined), 600);
+    return () => { live = false; clearTimeout(t); };
+  }, [text]);
+  return items;
+}
+
+export function AlreadyMade({ items }: { items: SimilarUpload[] }) {
+  return (
+    <StateCard tone="warn" icon="info" title={items.length === 1 ? "You’ve made a similar video" : `You’ve made ${items.length} similar videos`}>
+      {items.map((v) => <div key={v.video}>“{v.title}” · {v.views.toLocaleString("en-US")} views</div>)}
+      <div className="mt-sm">Make a follow-up or a clearly different angle, so the two videos don’t compete for the same viewers.</div>
+    </StateCard>
+  );
+}
 
 export function ideaModal(modal: ModalFn, data: Partial<Idea>, onSaved?: () => void) {
   modal((close) => <IdeaForm data={data} close={close} onSaved={onSaved} />);
@@ -40,6 +62,7 @@ function IdeaForm({ data, close, onSaved }: { data: Partial<Idea>; close(): void
   const [f, setF] = useState(draftOf(data));
   const [busy, setBusy] = useState(false);
   const set = (k: keyof IdeaDraft) => (e: { target: { value: string } }) => { const v = e.target.value; setF((p) => ({ ...p, [k]: v })); };
+  const similar = useAlreadyMade(editing ? "" : f.title || f.keyword);
   const save = async () => {
     setBusy(true);
     try {
@@ -55,6 +78,7 @@ function IdeaForm({ data, close, onSaved }: { data: Partial<Idea>; close(): void
     <Dialog title={editing ? "Edit idea" : "Save idea"} desc={editing ? undefined : "Keep this on your idea board and move it through production."}
       footer={<><Button onClick={close}>Cancel</Button><Button variant="primary" busy={busy} onClick={save}>{editing ? "Save changes" : "Add to board"}</Button></>}>
       <IdeaFields f={f} set={set} />
+      {similar.length > 0 && <AlreadyMade items={similar} />}
       {data.score != null && <div className="row secondary">Opportunity score <ScorePill score={data.score} /> {data.verdict}</div>}
     </Dialog>
   );

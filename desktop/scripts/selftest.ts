@@ -18,6 +18,7 @@ import { hash, quartiles, quotaDay } from "../src/core/util";
 import { parseDuration } from "../src/core/youtube";
 import { groupSeries, holdAt, openingAt, subjectTerms } from "../src/core/series";
 import { postsFromFeed, redditTop } from "../src/core/sources";
+import { extractQuestions, isRound, parseOnThisDay, risingArticles, similarUploads } from "../src/core/ideas";
 import { editNotes, etaRolling, lengthReport, partnerProgress, subscriberDrivers } from "../src/core/growth";
 import { FilePersist } from "../src/main/persist";
 
@@ -278,6 +279,34 @@ async function main() {
     assert.ok(fp.includes("Lightning strikes the same place twice.") && fp.includes("Needs nuance") && fp.includes("rather than inventing one"));
     assert.throws(() => engine.aiFactCheckPrompt("  "), /Paste your script/);
     engine.deleteSavedOpening(engine.listSavedOpenings()[0].id);
+  });
+  await test("Idea sources: viewer questions, anniversaries, rising articles, already made", async () => {
+    const c = (text: string, likes = 0) => ({ text, likes, video: "v1", videoTitle: "Why Pac-Man's ghosts move differently" });
+    const qs = extractQuestions([c("Great video! Why does Blinky always chase Pac-Man directly?", 40), c("why does blinky always chase pac-man directly?", 5),
+      c("What song is this?"), c("First"), c("@someone how do ghosts decide where to go at intersections?", 12), c("Check https://x.y why is this?")]);
+    assert.equal(qs[0].count, 2, "the same question asked twice is merged");
+    assert.ok(qs[0].question.startsWith("Why does Blinky"));
+    assert.ok(qs.some((q) => q.question.startsWith("How do ghosts decide")), "mentions are stripped");
+    assert.ok(!qs.some((q) => /song|First|https/.test(q.question)), "questions without a subject and links are dropped");
+    assert.ok(isRound(40) && isRound(25) && isRound(1) && !isRound(23));
+    const ev = parseOnThisDay({ selected: [{ year: 1986, text: "A", pages: [{ normalizedtitle: "Pages A" }] }], events: [{ year: 1999, text: "B", pages: [{ titles: { normalized: "B page" } }] }, { year: 1986, text: "A" }] }, 2026);
+    assert.equal(ev.length, 2, "duplicates removed");
+    assert.ok(ev[0].round && ev[0].years_ago === 40, "the 40th anniversary comes first");
+    const ra = risingArticles([{ article: "Main_Page", views: 9e6 }, { article: "Ball_lightning", views: 90000 }, { article: "Pac-Man", views: 60000 }, { article: "Steady", views: 50000 }],
+      [{ article: "Pac-Man", views: 20000 }, { article: "Steady", views: 48000 }, { article: "Other", views: 30000 }]);
+    assert.deepEqual(ra.map((a) => a.title), ["Ball lightning", "Pac-Man"], "Main Page and steady articles left out");
+    assert.equal(ra[1].ratio, 3);
+    const up = [{ title: "Why Pac-Man's Ghosts Each Move Differently", video: "a", views: 39300 }, { title: "Why Canada Has Weird Lake Names", video: "b", views: 32700 }];
+    assert.equal(similarUploads("pac man ghost behaviour explained", up)[0]?.video, "a");
+    assert.equal(similarUploads("why lightning goes up", up).length, 0);
+    const vq = await engine.viewerQuestions({ topic: "air fryer" });
+    assert.ok(vq.demo && vq.videos === 8 && vq.questions.length > 2 && vq.questions[0].count > 1);
+    await assert.rejects(engine.viewerQuestions({}), /Enter a topic/);
+    const days = await engine.dayEvents("2026-05-22");
+    assert.ok(days.demo && days.events.some((e) => e.page === "Pac-Man" && e.years_ago === 46));
+    await assert.rejects(engine.dayEvents("tomorrow"), /Choose a date/);
+    assert.ok((await engine.risingWiki()).articles.length > 3);
+    assert.deepEqual(await engine.alreadyMade("anything"), [], "no channel set, nothing to compare");
   });
   await test("Scans: list, CSV, delete", () => {
     const scans = engine.listScans();

@@ -650,7 +650,9 @@ details.howto a:hover { text-decoration: underline; }
 .avatar.sm { width: 24px; height: 24px; font-size: var(--fs-xs); }
 
 /* ================================================================= tabs */
-.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: var(--s4); }
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: var(--s4); overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button { flex: none; white-space: nowrap; }
 .tabs button { border: 0; background: none; height: 34px; padding: 0 var(--s3); cursor: pointer; color: var(--text-3); font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color var(--dur) var(--ease); }
 .tabs button:hover { color: var(--text); }
 .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
@@ -731,6 +733,10 @@ details.howto a:hover { text-decoration: underline; }
 }
 @media (max-width: 560px) {
   .hide-sm { display: none; }
+  .list-row:has(> .end) { flex-wrap: wrap; }
+  .list-row:has(> .end) > .body { flex: 1 1 60%; }
+  .list-row > .end { flex-basis: 100%; justify-content: flex-end; }
+  .list-row .title { white-space: normal; }
   .kpis, .kpis.three, .subscores { grid-template-columns: minmax(0, 1fr); }
   .kpi, .subscore { border-left: 0 !important; border-top: 1px solid var(--border-subtle); }
   .kpi:first-child, .subscore:first-child { border-top: 0; }

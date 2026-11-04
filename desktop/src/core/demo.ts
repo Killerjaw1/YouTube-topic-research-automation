@@ -117,6 +117,15 @@ export class DemoYouTube implements YouTubeSource {
     return this.videos(ids);
   }
 
+  async comments(videoId: string, max = 100) {
+    const r = rng("comments", videoId);
+    const subject = (this.vids.get(videoId)?.snippet?.title ?? "this").replace(/[^\w\s]/g, "").split(/\s+/).slice(-2).join(" ").toLowerCase();
+    const asks = [`Why does ${subject} work like that?`, `How long did it take to figure out ${subject}?`, `What happens if you do ${subject} backwards?`,
+      `Can you do a video on why air fryers dry out food?`, `Is it true that rice goes hard because of starch?`, `Why does freezer burn happen even in sealed bags?`,
+      `How do restaurants keep fries crispy for so long?`, `What is the best way to reheat rice safely?`, `Great video!`, `First`, `This is so useful, thanks`];
+    return Array.from({ length: Math.min(max, 24) }, () => ({ text: r.choice(asks), likes: r.int(0, 400) }));
+  }
+
   async trending(region = "US", category?: string) {
     const label = DEMO_CATEGORIES.find(([id]) => id === category)?.[1] ?? "everything";
     const topics = ["new phone leak", "speedrun record", "street food tour", "budget build", "movie trailer reaction",

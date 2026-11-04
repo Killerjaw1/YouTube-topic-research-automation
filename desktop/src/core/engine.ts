@@ -5,6 +5,7 @@
 
 import { Analytics, demoAudience, demoChannelVideos, demoGrowth, demoOpenings, demoOverview, demoRetention, demoSearchTerms, demoSeries } from "./analytics";
 import { lengthReport, type SavedOpening, subscriberDrivers } from "./growth";
+import { type CommentText, type DayEvent, demoDayEvents, demoRising, extractQuestions, onThisDay, type RisingArticle, risingArticles, similarUploads, type SimilarUpload, type ViewerQuestion, wikiTop } from "./ideas";
 import { DemoYouTube, demoReddit, demoSuggestions } from "./demo";
 import { checkDraft, playbook, type Draft } from "./optimize";
 import { anglesRequest, claudeAiPrompt, factCheckPrompt, metadataRequest, type ScriptRequest, scriptPrompt, translatePrompt } from "./prompts";
@@ -286,6 +287,68 @@ export class Engine {
     return { posts: await redditTop(sub, period, 30, { fetcher: this.opts.fetcher, clientId: this.settings.reddit_client_id, store: this.store }), demo: false };
   }
 
+  // -------------------------------------------------------- more idea sources
+  /** Live web sources (Wikipedia) are used in the desktop app unless sample data is switched on. */
+  private get liveWeb() { return this.opts.desktop && !this.settings.demo_mode; }
+  private webFetch: typeof fetch = (u, i) => (this.opts.fetcher ? this.opts.fetcher(String(u), i) : fetch(u, i));
+
+  /**
+   * Questions viewers ask in comments: on your recent uploads, and/or on the top videos for a topic.
+   * Costs 1 quota unit per video, plus 100 for the topic search.
+   */
+  async viewerQuestions(o: { topic?: string; mine?: boolean }): Promise<{ questions: ViewerQuestion[]; videos: number; quota_cost: number; demo: boolean }> {
+    const topic = o.topic?.trim() ?? "";
+    const mine = this.settings.my_channel;
+    if (!topic && !(o.mine && mine)) throw new UserError(mine ? "Enter a topic, or include your videos." : "Enter a topic. To read your own videos’ comments, add your channel in Settings first.");
+    const yt = this.yt(), before = this.store.quotaUsed();
+    const targets: { id: string; title: string }[] = [];
+    if (o.mine && mine) for (const v of await yt.recentUploads("UU" + mine.id.slice(2), 12)) targets.push({ id: v.id, title: v.snippet?.title ?? "" });
+    if (topic) {
+      const ids = (await yt.search(topic, { maxResults: 10, region: this.settings.region, language: this.settings.language })).slice(0, 8);
+      for (const v of await yt.videos(ids)) targets.push({ id: v.id, title: v.snippet?.title ?? "" });
+    }
+    const comments: CommentText[] = [];
+    for (const t of targets.slice(0, 20)) for (const c of await yt.comments(t.id, 100)) comments.push({ ...c, video: t.id, videoTitle: t.title });
+    return { questions: extractQuestions(comments), videos: targets.length, quota_cost: this.store.quotaUsed() - before, demo: this.isDemo() };
+  }
+
+  /** Events on a date (YYYY-MM-DD) from Wikipedia, round anniversaries first. */
+  async dayEvents(date: string): Promise<{ date: string; events: DayEvent[]; demo: boolean }> {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+    if (!m) throw new UserError("Choose a date.");
+    const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    if (!this.liveWeb) return { date, events: demoDayEvents(y), demo: true };
+    const key = `onthisday:${mo}-${d}`;
+    const cached = this.store.cacheGet<DayEvent[]>(key, 7 * 86400 * 1000);
+    const events = cached ?? await onThisDay(mo, d, y, this.webFetch);
+    if (!cached) this.store.cacheSet(key, events);
+    return { date, events: events.map((e) => ({ ...e, years_ago: y - e.year, round: y - e.year > 0 && ((y - e.year) % 5 === 0 || y - e.year === 1) })).sort((a, b) => Number(b.round) - Number(a.round) || b.year - a.year), demo: false };
+  }
+
+  /** Wikipedia articles read far more on the latest published day than the day before. */
+  async risingWiki(): Promise<{ day: string; articles: RisingArticle[]; demo: boolean }> {
+    if (!this.liveWeb) return { day: new Date(Date.now() - 86400000).toISOString().slice(0, 10), articles: demoRising(), demo: true };
+    const cached = this.store.cacheGet<{ day: string; articles: RisingArticle[] }>("wiki-rising", 3 * 3600 * 1000);
+    if (cached) return { ...cached, demo: false };
+    let day = new Date(Date.now() - 86400000), today = await wikiTop(day, this.webFetch);
+    if (!today) { day = new Date(Date.now() - 2 * 86400000); today = await wikiTop(day, this.webFetch); }
+    if (!today) throw new UserError("Wikipedia hasn’t published yesterday’s reading figures yet. Try again later today.");
+    const before = (await wikiTop(new Date(day.getTime() - 86400000), this.webFetch)) ?? [];
+    const result = { day: day.toISOString().slice(0, 10), articles: risingArticles(today, before) };
+    this.store.cacheSet("wiki-rising", result);
+    return { ...result, demo: false };
+  }
+
+  /** Your recent uploads that already cover an idea (needs your channel in Settings). */
+  async alreadyMade(text: string): Promise<SimilarUpload[]> {
+    const mine = this.settings.my_channel;
+    if (!mine || !text.trim()) return [];
+    try {
+      const uploads = await this.yt().recentUploads("UU" + mine.id.slice(2), 50);
+      return similarUploads(text, uploads.map((v) => ({ title: v.snippet?.title ?? "", video: v.id, views: Number(v.statistics?.viewCount) || 0 })));
+    } catch { return []; }
+  }
+
   // -------------------------------------------------------------- my channel
   async connectChannel(text: string): Promise<MyChannel> {
     if (text.trim().length < 2) throw new UserError("Enter your @handle or channel URL.");
@@ -492,7 +555,7 @@ export class Engine {
 /** Methods the UI may call over IPC (everything else on Engine stays internal). */
 export const ENGINE_METHODS = [
   "status", "getSettings", "saveSettings", "forgetSecret", "testYouTube", "clearCache", "suggest", "analyze", "discover", "outliers",
-  "categories", "trending", "reddit", "connectChannel", "forgetChannel", "aiAngles", "aiMetadata", "aiPrompt", "aiDraftPrompt", "aiScriptPrompt", "aiTranslatePrompt", "aiFactCheckPrompt", "optimizeCheck", "analyticsStatus",
+  "categories", "trending", "reddit", "viewerQuestions", "dayEvents", "risingWiki", "alreadyMade", "connectChannel", "forgetChannel", "aiAngles", "aiMetadata", "aiPrompt", "aiDraftPrompt", "aiScriptPrompt", "aiTranslatePrompt", "aiFactCheckPrompt", "optimizeCheck", "analyticsStatus",
   "analyticsOverview", "analyticsRetention", "analyticsSeries", "analyticsOpenings", "analyticsGrowth", "analyticsSearchTerms", "analyticsAudience", "analyticsCatalog",
   "listSavedOpenings", "saveOpening", "updateSavedOpening", "deleteSavedOpening", "analyticsDisconnect", "listScans", "getScan", "deleteScan", "scanCsv", "listIdeas",
   "addIdea", "updateIdea", "deleteIdea", "ideasCsv", "listTracked", "track", "untrack", "refreshTracked",

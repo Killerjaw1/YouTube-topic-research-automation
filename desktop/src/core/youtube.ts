@@ -9,7 +9,7 @@ import type { Store } from "./store";
 import { UserError } from "./types";
 
 const API = "https://www.googleapis.com/youtube/v3";
-const COSTS: Record<string, number> = { search: 100, videos: 1, channels: 1, playlistItems: 1, videoCategories: 1 };
+const COSTS: Record<string, number> = { search: 100, videos: 1, channels: 1, playlistItems: 1, videoCategories: 1, commentThreads: 1 };
 
 export class QuotaExceeded extends UserError {
   constructor() {
@@ -52,6 +52,8 @@ export interface YouTubeSource {
   channels(ids: string[]): Promise<any[]>;
   channelLookup(text: string): Promise<any | null>;
   recentUploads(uploadsPlaylist: string, limit?: number): Promise<any[]>;
+  /** Top-level comments on a video, most relevant first. Empty when comments are off. */
+  comments(videoId: string, max?: number): Promise<{ text: string; likes: number }[]>;
   trending(region: string, category?: string): Promise<any[]>;
   categories(region: string): Promise<{ id: string; title: string }[]>;
   test(): Promise<void>;
@@ -156,6 +158,19 @@ export class YouTubeClient implements YouTubeSource {
     const data = await this.get("playlistItems", { part: "contentDetails", playlistId: uploadsPlaylist, maxResults: Math.min(limit, 50) });
     const ids = (data.items ?? []).map((it: any) => it.contentDetails.videoId);
     return ids.length ? this.videos(ids) : [];
+  }
+
+  async comments(videoId: string, max = 100): Promise<{ text: string; likes: number }[]> {
+    try {
+      const data = await this.get("commentThreads", { part: "snippet", videoId, maxResults: Math.min(max, 100), order: "relevance", textFormat: "plainText" });
+      return (data.items ?? []).map((it: any) => {
+        const s = it.snippet?.topLevelComment?.snippet ?? {};
+        return { text: String(s.textDisplay ?? s.textOriginal ?? ""), likes: Number(s.likeCount) || 0 };
+      });
+    } catch (e) {
+      if (e instanceof QuotaExceeded || e instanceof InvalidKey) throw e;
+      return []; // comments turned off, or the video is private
+    }
   }
 
   async trending(region = "US", category?: string): Promise<any[]> {

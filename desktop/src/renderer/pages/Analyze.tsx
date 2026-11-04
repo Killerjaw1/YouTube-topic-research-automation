@@ -4,7 +4,7 @@ import { call, exportPdf, openExternal, saveFile } from "../api";
 import { ScoreRing, Scatter } from "../components/charts";
 import { Icon } from "../components/Icon";
 import { scriptDialog } from "../components/ClaudeHelpers";
-import { ideaModal } from "../components/IdeaModal";
+import { AlreadyMade, ideaModal, useAlreadyMade } from "../components/IdeaModal";
 import { Button, Card, ChipGroup, Dialog, Menu, Segmented, Tag } from "../components/kit";
 import {
   analyzeLink, Checklist, CopyButton, DemoBanner, useCopyForClaude, Empty, FormatBadge, go, Loading, PageHead, Reasons, type Route, SearchBox, useApp, Verdict,
@@ -131,6 +131,7 @@ function ReportView({ report: rep }: { report: Report }) {
   const [aiLoading, setAILoading] = useState(false);
   const [vf, setVF] = useState<VFilter>("all");
   const [tracked, setTracked] = useState(false);
+  const similar = useAlreadyMade(rep.keyword);
   useEffect(() => { call("listTracked").then((t) => setTracked(t.some((x) => x.keyword === rep.keyword.toLowerCase()))).catch(() => undefined); }, [rep.keyword]);
   const f = rep.formats, rec = f.recommended ?? { format: "either", why: "" };
   const focused = rep.focus === "short" || rep.focus === "long";
@@ -216,6 +217,8 @@ function ReportView({ report: rep }: { report: Report }) {
           </div>
         </div>
       </Card>
+
+      {similar.length > 0 && <AlreadyMade items={similar} />}
 
       <div className="subscores">
         {SUB_INFO.map(([k, name, desc]) => {
