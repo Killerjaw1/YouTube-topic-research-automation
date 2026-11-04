@@ -18,22 +18,28 @@ No accounts and no NicheRadar servers. Your keys and data stay on your computer.
 |---|---|
 | **Analyze topic** | A 0-100 opportunity score from demand, small-channel breakouts, large-channel dominance and freshness, with findings, a format recommendation, a channel-size vs. views chart and the full results table. Score against all videos, Shorts only or long-form only (Shorts is the default for channels that mostly post Shorts). Export as CSV or PDF. |
 | **Upload playbook** | Titles, title patterns, a description template with chapters, tags within YouTube's 500-character limit, hashtags, target length, and click-through, watch-time, Shorts and metadata checklists, all derived from the videos that rank for the topic. |
-| **Upload optimizer** | Scores a draft title, description and tags with specific fixes, using topic benchmarks when the keyword has been analyzed. |
+| **Upload optimizer** | Scores a draft title, description and tags with specific fixes, using topic benchmarks when the keyword has been analyzed. **Thumbnail preview** shows your thumbnail in a home feed, search results and Up next, in dark and light, next to the thumbnails that rank. **Templates** per series fill in the description, tags, hashtags and pinned comment. The **Test log** records Test & Compare results and tallies which title styles win. |
 | **Watchlist** | Track topics and re-score them over time, with trend lines and score changes. Optionally re-scores them once a week by itself and notifies you when a topic improves. |
 | **Compare** | Up to four analyses side by side. |
-| **Discover ideas** | Mines YouTube search suggestions (A–Z, questions, modifiers) around a niche at no quota cost, then batch-scores the phrases you select. Also turns popular Reddit threads into topics, with one-click subreddits for “why” and “how” questions. |
+| **Discover ideas** | Mines YouTube search suggestions (A–Z, questions, modifiers) around a niche at no quota cost, then batch-scores the phrases you select. **Viewer questions** collects the questions people ask in comments on your videos and on the top videos for a topic. **On this day** lists Wikipedia anniversaries for any date (round ones first), and **Rising on Wikipedia** shows articles whose readership just jumped. Also turns popular Reddit threads into topics. Reports and new ideas warn when you’ve already made a similar video. |
 | **Outliers** | Recent small-channel videos that earned many times their subscriber count. |
+| **Competitors** | Follow channels like yours and see which of their latest uploads are taking off, compared with each channel’s usual views. Find collaborators: channels near your size that cover a topic. |
 | **Trending** | YouTube's trending chart by country and category, with small-channel videos highlighted. |
-| **Analytics** | Connect YouTube Analytics (read-only) for views, watch time, average percentage viewed, click-through rate, traffic sources and per-video audience retention, with insights from your own numbers (adapted for Shorts-first channels). **Series** groups your videos by subject and shows which to make more of; **long-form and Shorts ideas** are built from series that already work; **Openings** compares how many viewers stay 3 seconds into a Short or 30 seconds into a long video; **More like this** finds related questions for any video. |
-| **AI assistant** (optional) | With an Anthropic API key, Claude proposes differentiated angles, ready-to-use metadata, thumbnail concepts and a retention plan, and can review a draft. |
-| **Idea board** | A drag-and-drop production pipeline with CSV export. |
+| **Analytics** | Connect YouTube Analytics (read-only) for views, watch time, average percentage viewed, click-through rate, traffic sources and per-video audience retention, with insights from your own numbers (adapted for Shorts-first channels). **Series** groups your videos by subject and shows which to make more of; **long-form and Shorts ideas** are built from series that already work; **Openings** compares how many viewers stay 3 seconds into a Short or 30 seconds into a long video, with a library of opening lines that work; **More like this** finds related questions for any video. The **Audience** tab shows the searches that brought viewers, and their countries, ages and devices. **Growth** tracks Partner Program progress with an estimated date. Each video’s retention gets edit notes: where viewers leave and what they rewatch. |
+| **Claude** (optional) | Claude proposes differentiated angles, metadata, thumbnail concepts and a retention plan, reviews drafts, writes Shorts scripts in the style of your best openings, translates titles and descriptions, and fact-checks scripts. With a Claude plan (Pro, Max, Team), **Copy for Claude.ai** copies the request to paste into a chat; with an Anthropic API key, results appear in the app. |
+| **Idea board and Planner** | A drag-and-drop production pipeline, and a publishing calendar with your posting rhythm, the weekday your videos do best on, and goals with an estimated date. |
+| **Channels** | Run more than one channel: each has its own Analytics sign-in, reports, watchlist, ideas and plans, sharing your API keys. |
 
-Also included: a command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>), keyboard shortcuts for every section, first-run setup,
-system/light/dark themes, automatic updates, and a status bar showing data source and remaining quota.
+Also included: a command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>), quick add from anywhere in Windows
+(<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> or the tray icon), notifications for the weekly summary, early hits on new
+uploads and watchlist changes, backup and restore, first-run setup, system/light/dark themes, automatic updates, and a
+status bar showing data source and remaining quota.
 
 | Upload playbook | Compare topics |
 |---|---|
 | ![Upload playbook](docs/screenshots/playbook.png) | ![Compare](docs/screenshots/compare.png) |
+| **Analytics: series and openings** | **Planner** |
+| ![Analytics](docs/screenshots/analytics.png) | ![Planner](docs/screenshots/planner.png) |
 
 ## Install
 
@@ -55,7 +61,13 @@ sample data; every screen works without a key.
 2. **Connect your channel** under *Settings → Your channel* (your @handle or channel URL). "Small channel" then
    means channels within reach of yours: 25× your subscribers, between 10K and 250K.
 3. **Optional: connect YouTube Analytics** under *Settings → YouTube Analytics* (steps below).
-4. **Optional: add an Anthropic API key** under *Settings → AI assistant* for AI angles and rewrites.
+4. **Optional: Claude.** With a Claude plan, nothing to set up: use *Copy for Claude.ai*. Or add an Anthropic API key
+   under *Settings → AI assistant* to see results inside the app (billed separately from Claude plans).
+5. **Optional: a Reddit app ID** under *Settings → Reddit*, if Reddit blocks the Reddit tab. It's free and read-only:
+   at [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) create an app of type *installed app* (redirect uri
+   `http://localhost:8080`) and paste the ID shown under its name.
+6. **Running more than one channel?** Click the channel card at the bottom of the sidebar and choose *Add another
+   channel*. Each channel connects its own YouTube Analytics.
 
 ### Connecting YouTube Analytics
 
@@ -84,6 +96,7 @@ between your PC and Google:
 | <kbd>Ctrl</kbd>+<kbd>1</kbd>–<kbd>9</kbd> | Go to a section |
 | <kbd>Ctrl</kbd>+<kbd>,</kbd> | Settings |
 | <kbd>Ctrl</kbd>+<kbd>/</kbd> | Show all shortcuts |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> | New idea, from anywhere in Windows while NicheRadar runs |
 
 ## How it works
 
@@ -92,8 +105,9 @@ between your PC and Google:
   top results, and YouTube surfaces new uploads (or the top videos are old). Guard rails keep a topic nobody
   watches from scoring well just because nobody competes.
 - **Quota.** A quick scan costs about 102 of your 10,000 daily units; a deep scan (adds the most-viewed uploads of
-  the last 90 days) about 204. Trending costs about 2. Finding ideas from search suggestions and Reddit costs
-  nothing. The sidebar shows what's left today; quota resets at midnight Pacific time. Results are cached for 12
+  the last 90 days) about 204. Trending costs about 2. Viewer questions cost 1 per video read (plus 100 for a topic
+  search), following competitors about 2 per channel, and early hit alerts about 8 a day. Search suggestions, Reddit
+  and Wikipedia cost nothing. The sidebar shows what's left today; quota resets at midnight Pacific time. Results are cached for 12
   hours, and reopening a saved report from History is free.
 - **History.** Every report and outlier search is saved, including AI suggestions. Reopen, re-run, compare or export
   any of them.
@@ -108,11 +122,13 @@ between your PC and Google:
 
 ## Privacy and security
 
-- Everything is stored in `%APPDATA%\NicheRadar\data` (*Settings → Data → Open data folder*).
+- Everything is stored in `%APPDATA%\NicheRadar\data` (*Settings → Data → Open data folder*). Extra channel
+  profiles live in `data\profiles`. Backups (*Settings → Data → Save backup*) never include keys or sign-ins.
 - API keys, the Google client secret and the Google sign-in are encrypted with your Windows account (Windows
   DPAPI through Electron's `safeStorage`). The UI only ever sees a masked hint like `AIza…7890`.
-- NicheRadar only talks to Google (YouTube Data and Analytics APIs, search suggestions), Reddit (when you use that
-  tab) and Anthropic (only when you click an AI button). Nothing about you is sent anywhere else.
+- NicheRadar only talks to Google (YouTube Data and Analytics APIs, search suggestions), Reddit and Wikipedia
+  (when you use those tabs) and Anthropic (only when you use an AI button with an API key). Nothing about you is sent
+  anywhere else.
 - Google sign-in uses OAuth with PKCE and a one-time loopback address on `127.0.0.1`, in your real browser
   (Google blocks sign-in inside app windows). Access is read-only, and *Disconnect* revokes it.
 - The app window is sandboxed with context isolation and a strict Content-Security-Policy. The page can only call

@@ -22,7 +22,7 @@ import {
 import { csv, median, round } from "./util";
 import { publishedAfterDays, YouTubeClient, type YouTubeSource } from "./youtube";
 
-export const VERSION = "1.1.1";
+export const VERSION = "1.2.0";
 
 export interface AIProvider {
   angles(apiKey: string, report: Report, note: string): Promise<AIAngles>;
