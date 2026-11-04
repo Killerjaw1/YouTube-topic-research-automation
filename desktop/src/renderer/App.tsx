@@ -18,6 +18,7 @@ import { OutliersPage } from "./pages/Outliers";
 import { SettingsPage } from "./pages/Settings";
 import { TrendingPage } from "./pages/Trending";
 import { WatchlistPage } from "./pages/Watchlist";
+import { CompetitorsPage } from "./pages/Competitors";
 
 const SECTIONS: [string, NavItem[]][] = [
   ["Research", [
@@ -26,6 +27,7 @@ const SECTIONS: [string, NavItem[]][] = [
     { id: "discover", label: "Discover ideas", icon: "compass", shortcut: "Ctrl 3" },
     { id: "outliers", label: "Outliers", icon: "rocket", shortcut: "Ctrl 4" },
     { id: "trending", label: "Trending", icon: "flame", shortcut: "Ctrl 5" },
+    { id: "competitors", label: "Competitors", icon: "users" },
   ]],
   ["Plan", [
     { id: "watchlist", label: "Watchlist", icon: "eye", shortcut: "Ctrl 6" },
@@ -49,6 +51,7 @@ const PAGES: Record<string, { render(r: Route): ReactNode; narrow?: boolean }> =
   discover: { render: (r) => <DiscoverPage route={r} /> },
   outliers: { render: (r) => <OutliersPage route={r} /> },
   trending: { render: (r) => <TrendingPage route={r} /> },
+  competitors: { render: (r) => <CompetitorsPage route={r} /> },
   watchlist: { render: () => <WatchlistPage /> },
   compare: { render: (r) => <ComparePage route={r} /> },
   optimizer: { render: (r) => <OptimizerPage route={r} /> },

@@ -107,11 +107,14 @@ export class DemoYouTube implements YouTubeSource {
   }
 
   async recentUploads(uploadsPlaylist: string, limit = 15) {
-    const ids = this.make("my channel " + uploadsPlaylist, limit, 120);
     const cid = "UC" + uploadsPlaylist.slice(2);
+    const topics = ["retro game secrets", "weird geography", "science facts", "air fryer recipes", "meal prep", "space mysteries", "history oddities"];
+    const ids = this.make(topics[parseInt(hash(cid).slice(0, 6), 16) % topics.length], limit, 120, cid);
+    const name = this.chans.get(cid)?.snippet?.title;
     for (const i of ids) {
       const v = this.vids.get(i);
       v.snippet.channelId = cid;
+      if (name) v.snippet.channelTitle = name;
       v.statistics.viewCount = String(Math.floor(+v.statistics.viewCount * 0.02) + 40);
     }
     return this.videos(ids);

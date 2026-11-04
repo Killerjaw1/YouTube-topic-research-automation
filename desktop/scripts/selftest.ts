@@ -18,6 +18,7 @@ import { hash, quartiles, quotaDay } from "../src/core/util";
 import { parseDuration } from "../src/core/youtube";
 import { groupSeries, holdAt, openingAt, subjectTerms } from "../src/core/series";
 import { postsFromFeed, redditTop } from "../src/core/sources";
+import { channelFeed, collabCandidates } from "../src/core/competitors";
 import { extractQuestions, isRound, parseOnThisDay, risingArticles, similarUploads } from "../src/core/ideas";
 import { editNotes, etaRolling, lengthReport, partnerProgress, subscriberDrivers } from "../src/core/growth";
 import { FilePersist } from "../src/main/persist";
@@ -307,6 +308,23 @@ async function main() {
     await assert.rejects(engine.dayEvents("tomorrow"), /Choose a date/);
     assert.ok((await engine.risingWiki()).articles.length > 3);
     assert.deepEqual(await engine.alreadyMade("anything"), [], "no channel set, nothing to compare");
+  });
+  await test("Competitors: feed against each channel's usual pace, collaborators near your size", async () => {
+    const row = (id: string, views: number, age: number, subs = 5000, ch = "c1") => enrich([{ id, snippet: { title: id, channelId: ch, channelTitle: ch, publishedAt: new Date(Date.now() - age * 86400000).toISOString() },
+      statistics: { viewCount: String(views) }, contentDetails: { duration: "PT45S" } }], [{ id: ch, snippet: { title: ch }, statistics: { subscriberCount: String(subs), videoCount: "50", viewCount: "100000" } }])[0];
+    const feed = channelFeed([row("a", 1000, 10), row("b", 1200, 12), row("c", 900, 9), row("hot", 9000, 5)]);
+    assert.ok(feed.find((v) => v.id === "hot")!.hot && !feed.find((v) => v.id === "a")!.hot);
+    const rows = [row("x1", 5000, 20, 2000, "near"), row("x2", 7000, 40, 2000, "near"), row("y", 90000, 5, 2_000_000, "huge"), row("z", 300, 5, 50, "tiny"), row("m", 400, 3, 1500, "me")];
+    const cands = collabCandidates(rows, [], 1500, "me");
+    assert.deepEqual(cands.map((c) => c.id), ["near"], "only channels a third to three times your size, not yours");
+    assert.equal(cands[0].matches, 2);
+    const list = await engine.addCompetitor("@retrofacts");
+    assert.equal(list.length, 1);
+    const f = await engine.competitorFeed();
+    assert.ok(f.demo && f.channels.length === 1 && f.videos.length === 12 && f.videos[0].age_days <= f.videos[1].age_days, "newest first");
+    assert.equal(engine.removeCompetitor(list[0].id).length, 0);
+    await assert.rejects(engine.findCollaborators(" "), /Enter a topic/);
+    assert.ok(Array.isArray((await engine.findCollaborators("retro game history")).channels));
   });
   await test("Scans: list, CSV, delete", () => {
     const scans = engine.listScans();

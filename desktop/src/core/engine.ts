@@ -4,6 +4,7 @@
  */
 
 import { Analytics, demoAudience, demoChannelVideos, demoGrowth, demoOpenings, demoOverview, demoRetention, demoSearchTerms, demoSeries } from "./analytics";
+import { channelFeed, type CollabChannel, collabCandidates, type Competitor, type CompetitorSummary, type FeedVideo, summarize } from "./competitors";
 import { lengthReport, type SavedOpening, subscriberDrivers } from "./growth";
 import { type CommentText, type DayEvent, demoDayEvents, demoRising, extractQuestions, onThisDay, type RisingArticle, risingArticles, similarUploads, type SimilarUpload, type ViewerQuestion, wikiTop } from "./ideas";
 import { DemoYouTube, demoReddit, demoSuggestions } from "./demo";
@@ -349,6 +350,59 @@ export class Engine {
     } catch { return []; }
   }
 
+  // -------------------------------------------------------------- competitors
+  listCompetitors(): Competitor[] { return this.store.getDoc<Competitor[]>("competitors", []); }
+
+  /** Follow a channel by @handle, URL or ID (1 quota unit). */
+  async addCompetitor(text: string): Promise<Competitor[]> {
+    if (text.trim().length < 2) throw new UserError("Enter a channel’s @handle or URL.");
+    const ch = await this.yt().channelLookup(text);
+    if (!ch) throw new UserError("That channel couldn’t be found. Check the @handle, or paste the channel URL.");
+    const list = this.listCompetitors().filter((c) => c.id !== ch.id);
+    if (list.length >= 25) throw new UserError("You can follow up to 25 channels. Remove one first.");
+    const st = ch.statistics ?? {};
+    list.push({ id: ch.id, title: ch.snippet?.title ?? "", handle: ch.snippet?.customUrl ?? "", thumb: ch.snippet?.thumbnails?.default?.url ?? "",
+      subs: st.hiddenSubscriberCount ? null : Number(st.subscriberCount) || 0, videos: Number(st.videoCount) || 0, added: Date.now() / 1000 });
+    this.store.setDoc("competitors", list);
+    return list;
+  }
+
+  removeCompetitor(id: string): Competitor[] {
+    const list = this.listCompetitors().filter((c) => c.id !== id);
+    this.store.setDoc("competitors", list);
+    return list;
+  }
+
+  /** Latest uploads from followed channels, newest first, each against its channel's usual pace (about 2 units a channel). */
+  async competitorFeed(): Promise<{ channels: CompetitorSummary[]; videos: FeedVideo[]; demo: boolean }> {
+    const yt = this.yt();
+    const channels: CompetitorSummary[] = [], videos: FeedVideo[] = [];
+    for (const c of this.listCompetitors()) {
+      try {
+        const uploads = await yt.recentUploads("UU" + c.id.slice(2), 12);
+        const meta = await yt.channels([c.id]);
+        const feed = channelFeed(enrich(uploads, meta.length ? meta : [{ id: c.id, snippet: { title: c.title }, statistics: {} }]).map((r) => ({ ...r, channel_title: r.channel_title || c.title })));
+        channels.push(summarize(meta[0] ? { ...c, subs: meta[0].statistics?.hiddenSubscriberCount ? null : Number(meta[0].statistics?.subscriberCount) || c.subs } : c, feed));
+        videos.push(...feed);
+      } catch (e: any) {
+        if (e?.kind === "QuotaExceeded" || e?.kind === "InvalidKey") throw e;
+        channels.push(summarize(c, []));
+      }
+    }
+    videos.sort((a, b) => a.age_days - b.age_days);
+    return { channels, videos, demo: this.isDemo() };
+  }
+
+  /** Channels near your size that cover a topic, for collaborations (about 102 quota units). */
+  async findCollaborators(topic: string): Promise<{ channels: CollabChannel[]; demo: boolean }> {
+    if (!topic.trim()) throw new UserError("Enter a topic you’d collaborate on.");
+    const yt = this.yt(), s = this.settings;
+    const ids = await yt.search(topic.trim(), { maxResults: 50, region: s.region, language: s.language });
+    const { videos, channels } = await this.rowsFor(ids);
+    const rows = enrich(videos, channels, ids);
+    return { channels: collabCandidates(rows, channels, s.my_channel?.subs ?? null, s.my_channel?.id), demo: this.isDemo() };
+  }
+
   // -------------------------------------------------------------- my channel
   async connectChannel(text: string): Promise<MyChannel> {
     if (text.trim().length < 2) throw new UserError("Enter your @handle or channel URL.");
@@ -555,7 +609,8 @@ export class Engine {
 /** Methods the UI may call over IPC (everything else on Engine stays internal). */
 export const ENGINE_METHODS = [
   "status", "getSettings", "saveSettings", "forgetSecret", "testYouTube", "clearCache", "suggest", "analyze", "discover", "outliers",
-  "categories", "trending", "reddit", "viewerQuestions", "dayEvents", "risingWiki", "alreadyMade", "connectChannel", "forgetChannel", "aiAngles", "aiMetadata", "aiPrompt", "aiDraftPrompt", "aiScriptPrompt", "aiTranslatePrompt", "aiFactCheckPrompt", "optimizeCheck", "analyticsStatus",
+  "categories", "trending", "reddit", "viewerQuestions", "dayEvents", "risingWiki", "alreadyMade",
+  "listCompetitors", "addCompetitor", "removeCompetitor", "competitorFeed", "findCollaborators", "connectChannel", "forgetChannel", "aiAngles", "aiMetadata", "aiPrompt", "aiDraftPrompt", "aiScriptPrompt", "aiTranslatePrompt", "aiFactCheckPrompt", "optimizeCheck", "analyticsStatus",
   "analyticsOverview", "analyticsRetention", "analyticsSeries", "analyticsOpenings", "analyticsGrowth", "analyticsSearchTerms", "analyticsAudience", "analyticsCatalog",
   "listSavedOpenings", "saveOpening", "updateSavedOpening", "deleteSavedOpening", "analyticsDisconnect", "listScans", "getScan", "deleteScan", "scanCsv", "listIdeas",
   "addIdea", "updateIdea", "deleteIdea", "ideasCsv", "listTracked", "track", "untrack", "refreshTracked",
