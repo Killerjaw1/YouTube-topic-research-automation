@@ -46,7 +46,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: NicheRadar-Windows-installer
-          path: desktop/dist-installer/*.exe
+          path: |
+            desktop/dist-installer/*.exe
+            desktop/dist-installer/latest.yml
           if-no-files-found: error
       - name: Attach installer to the GitHub release (tags only)
         if: startsWith(github.ref, 'refs/tags/v')
