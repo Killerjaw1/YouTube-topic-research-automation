@@ -24,6 +24,7 @@ import { earlyHits, goalProgress, rhythm, weekdayStats, weekKey } from "../src/c
 import { extractQuestions, isRound, parseOnThisDay, risingArticles, similarUploads } from "../src/core/ideas";
 import { editNotes, etaRolling, lengthReport, partnerProgress, subscriberDrivers } from "../src/core/growth";
 import { FilePersist } from "../src/main/persist";
+import { MAIN, Profiles } from "../src/main/profiles";
 
 let passed = 0, failed = 0;
 async function test(name: string, fn: () => unknown | Promise<unknown>) {
@@ -394,6 +395,43 @@ async function main() {
     const ctx = engine.thumbnailContext(report.keyword);
     assert.ok(ctx && ctx.videos.length === 8 && ctx.keyword === report.keyword);
     assert.equal(engine.thumbnailContext("never analyzed topic"), null);
+  });
+  await test("Channel profiles: shared keys, settings and quota; separate research and plans", () => {
+    const main = new Store(new MemoryPersist());
+    main.setSecret("youtube_api_key", "KEY-1");
+    main.updateSettings({ region: "GB", my_channel: null });
+    const other = new Store(new MemoryPersist(), undefined, main);
+    assert.equal(other.getSecret("youtube_api_key"), "KEY-1", "the API key is shared");
+    other.setSecret("anthropic_api_key", "sk-ant-x");
+    assert.equal(main.getSecret("anthropic_api_key"), "sk-ant-x", "setting a shared key from a profile updates the main one");
+    other.setSecret("google_tokens", "tok");
+    assert.equal(main.getSecret("google_tokens"), "", "Google sign-in is per channel");
+    assert.equal(other.getSettings().region, "GB");
+    other.updateSettings({ region: "US", weekly_check: true });
+    assert.equal(main.getSettings().region, "US", "research preferences are shared");
+    assert.equal(main.getSettings().weekly_check, false, "the weekly check is per channel");
+    assert.equal(other.getSettings().weekly_check, true);
+    other.addQuota(102);
+    assert.equal(main.quotaUsed(), 102, "one API key, one daily quota");
+    other.saveScan("analyze", "pac man", {}, 50, "x", true);
+    assert.equal(main.listScans().length, 0, "reports stay with their channel");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nr-profiles-"));
+    const pr = new Profiles(dir);
+    assert.equal(pr.active, MAIN);
+    assert.equal(pr.dir(MAIN), dir, "the main channel keeps the original data folder");
+    const p = pr.create("VibePhiles");
+    assert.ok(fs.existsSync(pr.dir(p.id)));
+    pr.setActive(p.id);
+    pr.rename(p.id, "VibePhiles music");
+    const again = new Profiles(dir);
+    assert.equal(again.active, p.id, "the active channel is remembered");
+    assert.equal(again.list().list.find((x) => x.id === p.id)?.name, "VibePhiles music");
+    again.remove(p.id);
+    assert.equal(again.active, MAIN);
+    assert.ok(!fs.existsSync(again.dir(p.id)), "removing a channel deletes its data");
+    assert.throws(() => again.remove(MAIN), /can’t be removed/);
+    assert.throws(() => again.dir("../x"), /bad profile id/);
+    fs.rmSync(dir, { recursive: true, force: true });
   });
   await test("Scans: list, CSV, delete", () => {
     const scans = engine.listScans();

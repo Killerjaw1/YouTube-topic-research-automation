@@ -26,6 +26,7 @@ interface Bridge {
     onChange(cb: (s: UpdateState) => void): () => void;
   };
   onEvent?(cb: (e: AppEvent) => void): () => void;
+  profiles?: Record<"list" | "create" | "switch" | "rename" | "remove" | "autoname", (...a: string[]) => Promise<{ ok: boolean; data?: any; error?: string }>>;
   platform: string;
 }
 
@@ -120,6 +121,19 @@ export const updates = {
   async check(): Promise<UpdateState> { return bridge ? (await bridge.updates.check()).data : { state: "unsupported" }; },
   install() { bridge?.updates.install(); },
   onChange(cb: (s: UpdateState) => void) { return bridge ? bridge.updates.onChange(cb) : () => undefined; },
+};
+
+export interface ProfileList { active: string; list: { id: string; name: string; created: number }[] }
+
+/** Channel profiles (desktop only). Switching reloads the window. */
+export const profiles = {
+  supported: Boolean(bridge?.profiles),
+  async run(op: "list" | "create" | "switch" | "rename" | "remove" | "autoname", ...a: string[]): Promise<ProfileList> {
+    if (!bridge?.profiles) return { active: "main", list: [{ id: "main", name: "Main channel", created: 0 }] };
+    const r = await bridge.profiles[op](...a);
+    if (!r.ok) throw new ApiError(r.error ?? "That didn’t work. Try again.");
+    return r.data;
+  },
 };
 
 /** Listen for messages from the desktop app's main process (such as a notification being clicked). */

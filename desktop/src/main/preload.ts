@@ -21,6 +21,14 @@ contextBridge.exposeInMainWorld("nicheradar", {
       return () => ipcRenderer.removeListener("update", fn);
     },
   },
+  profiles: {
+    list: () => ipcRenderer.invoke("profiles:list"),
+    create: (name: string) => ipcRenderer.invoke("profiles:create", name),
+    switch: (id: string) => ipcRenderer.invoke("profiles:switch", id),
+    rename: (id: string, name: string) => ipcRenderer.invoke("profiles:rename", id, name),
+    remove: (id: string) => ipcRenderer.invoke("profiles:remove", id),
+    autoname: (title: string) => ipcRenderer.invoke("profiles:autoname", title),
+  },
   /** Messages from the main process: { type: "navigate", hash } or { type: "refresh" }. */
   onEvent: (cb: (e: unknown) => void) => {
     const fn = (_e: unknown, ev: unknown) => cb(ev);

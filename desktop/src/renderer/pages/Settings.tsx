@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { PublicSettings } from "../../core/types";
-import { appVersion, call, isDesktop, openDataFolder, type UpdateState, updates } from "../api";
+import { appVersion, call, isDesktop, openDataFolder, profiles, type UpdateState, updates } from "../api";
+import { ChannelsGroup } from "../components/Channels";
 import { Banner, Button, Segmented, SettingRow, SettingsGroup, Status, Switch } from "../components/kit";
 import { Loading, PageHead, type ThemePref, useApp } from "../components/ui";
 import { fmt } from "../format";
@@ -8,7 +9,7 @@ import { useConnectAnalytics } from "./Analytics";
 import { REGIONS } from "./Trending";
 
 const LINK = (href: string, text: string) => <a href={href} target="_blank" rel="noopener">{text}</a>;
-const SECTIONS: [string, string][] = [["youtube", "YouTube data"], ["channel", "Your channel"], ["analytics", "YouTube Analytics"], ["research", "Research"], ["watchlist", "Watchlist"], ["notifications", "Notifications"], ["reddit", "Reddit"],
+const SECTIONS: [string, string][] = [["youtube", "YouTube data"], ["channel", "Your channel"], ...(profiles.supported ? [["profiles", "Channels"] as [string, string]] : []), ["analytics", "YouTube Analytics"], ["research", "Research"], ["watchlist", "Watchlist"], ["notifications", "Notifications"], ["reddit", "Reddit"],
   ["ai", "AI assistant"], ["appearance", "Appearance"], ["updates", "Updates"], ["data", "Data and privacy"]];
 const RESEARCH_KEYS = ["region", "language", "small_channel_max", "big_channel_min", "fresh_days", "cache_hours", "daily_quota"] as const;
 
@@ -57,7 +58,7 @@ export function SettingsPage() {
   });
   const connectChannel = (text: string) => run("channel", async () => {
     if (!text.trim()) return;
-    try { const c = await call("connectChannel", text.trim()); toast("Channel added", "ok", c.title); setKeys((k) => ({ ...k, channel: "" })); load(); refresh(); }
+    try { const c = await call("connectChannel", text.trim()); toast("Channel added", "ok", c.title); profiles.run("autoname", c.title).catch(() => undefined); setKeys((k) => ({ ...k, channel: "" })); load(); refresh(); }
     catch (e) { fail(e, "The channel couldn’t be found"); }
   });
   const forget = async (key: "youtube_api_key" | "anthropic_api_key", msg: string) => {
@@ -131,6 +132,8 @@ export function SettingsPage() {
           <Switch label="Set the small-channel limit from my channel" checked={s.auto_small_threshold} onChange={(v) => save({ auto_small_threshold: v })} />
         </SettingRow>
       </SettingsGroup>
+
+      <ChannelsGroup />
 
       <SettingsGroup id="s-analytics" title="YouTube Analytics" desc="Read-only access to your channel’s private statistics: retention, watch time, traffic sources and click-through rate.">
         <SettingRow title="Connection" desc={s.analytics_connected ? <Status tone="ok">Connected{s.analytics_channel ? ` to ${s.analytics_channel.title}` : ""}</Status>

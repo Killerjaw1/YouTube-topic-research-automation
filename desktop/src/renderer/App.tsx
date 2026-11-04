@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { isWindows, onAppEvent, type UpdateState, updates } from "./api";
+import { isWindows, onAppEvent, profiles, type UpdateState, updates } from "./api";
+import { switchChannelDialog } from "./components/Channels";
 import { CommandPalette, type NavItem } from "./components/CommandPalette";
 import { Icon } from "./components/Icon";
 import { Button, Dialog, Status, type Tone } from "./components/kit";
@@ -107,6 +108,12 @@ export function App() {
   const [navOpen, setNavOpen] = useState(false);
   const mainRef = useRef<HTMLDivElement>(null);
   const app = useAppStatus();
+  // The active channel profile's name, shown in the sidebar until a YouTube channel is added to it.
+  const [profileName, setProfileName] = useState<string | null>(null);
+  useEffect(() => {
+    if (!profiles.supported) return;
+    profiles.run("list").then((p) => { const n = p.list.find((x) => x.id === p.active)?.name; setProfileName(p.list.length > 1 && n ? n : null); }).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     const onHash = () => { setRoute(parseRoute()); setVisit((n) => n + 1); setNavOpen(false); mainRef.current?.scrollTo(0, 0); };
@@ -185,11 +192,19 @@ export function App() {
               {app.detail && <span className="secondary">{app.detail}</span>}
               {status && !status.demo && <div className="meter"><i className={app.tone} style={{ width: `${Math.max(0, 100 - (status.quota_used / status.quota_limit) * 100)}%` }} /></div>}
             </a>
-            <a className="status-card" href="#/settings" title="Your channel">
-              <span className="line"><span className="avatar sm">{ch?.thumb ? <img src={ch.thumb} alt="" /> : <Icon name="user" size={12} />}</span>
-                <span className="ellipsis">{ch ? ch.title : "Add your channel"}</span></span>
-              <span className="secondary" style={{ paddingLeft: 32 }}>{ch ? `${fmt(ch.subs)} subscribers` : "Scores adapt to your size"}</span>
-            </a>
+            {profiles.supported ? (
+              <button type="button" className="status-card" title="Switch channel" onClick={() => switchChannelDialog(modal)}>
+                <span className="line"><span className="avatar sm">{ch?.thumb ? <img src={ch.thumb} alt="" /> : <Icon name="user" size={12} />}</span>
+                  <span className="ellipsis grow">{ch ? ch.title : profileName ?? "Add your channel"}</span><Icon name="swap" size={14} /></span>
+                <span className="secondary" style={{ paddingLeft: 32 }}>{ch ? `${fmt(ch.subs)} subscribers` : profileName ? "Add the channel in Settings" : "Scores adapt to your size"}</span>
+              </button>
+            ) : (
+              <a className="status-card" href="#/settings" title="Your channel">
+                <span className="line"><span className="avatar sm">{ch?.thumb ? <img src={ch.thumb} alt="" /> : <Icon name="user" size={12} />}</span>
+                  <span className="ellipsis">{ch ? ch.title : "Add your channel"}</span></span>
+                <span className="secondary" style={{ paddingLeft: 32 }}>{ch ? `${fmt(ch.subs)} subscribers` : "Scores adapt to your size"}</span>
+              </a>
+            )}
             <nav className="nav">{navLink(SETTINGS)}</nav>
           </div>
         </aside>

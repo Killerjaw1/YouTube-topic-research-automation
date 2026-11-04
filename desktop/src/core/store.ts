@@ -25,6 +25,10 @@ export interface Cipher {
 
 const plainCipher: Cipher = { encrypt: (s) => s, decrypt: (s) => s };
 
+/** Things that belong to you rather than to one channel, kept in the main profile and shared by every channel profile. */
+export const SHARED_SECRETS: SecretName[] = ["youtube_api_key", "anthropic_api_key", "google_client_secret"];
+export const SHARED_SETTINGS = ["google_client_id", "reddit_client_id", "region", "language", "daily_quota", "cache_hours", "auto_update", "demo_mode", "onboarded"] as const satisfies readonly (keyof Settings)[];
+
 interface Index {
   nextScan: number;
   nextIdea: number;
@@ -50,7 +54,11 @@ export class Store {
   private index: Index;
   private settingsCache: Settings | null = null;
 
-  constructor(private persist: Persist, private cipher: Cipher = plainCipher) {
+  /**
+   * `shared` is the main profile's store when this store belongs to another channel profile: API keys, the
+   * Google and Reddit app details, research preferences and the daily quota ledger are read from and written to it.
+   */
+  constructor(private persist: Persist, private cipher: Cipher = plainCipher, private shared?: Store) {
     this.index = this.readJson<Index>("index.json") ?? { nextScan: 1, nextIdea: 1, scans: [], ideas: [], quota: {} };
   }
 
@@ -79,27 +87,36 @@ export class Store {
   // ------------------------------------------------------------- settings
   getSettings(): Settings {
     if (!this.settingsCache) this.settingsCache = { ...DEFAULT_SETTINGS, ...(this.readJson<Partial<Settings>>("settings.json") ?? {}) };
-    return { ...this.settingsCache };
+    if (!this.shared) return { ...this.settingsCache };
+    const main = this.shared.getSettings();
+    return { ...this.settingsCache, ...Object.fromEntries(SHARED_SETTINGS.map((k) => [k, main[k]])) } as Settings;
   }
 
   updateSettings(patch: Partial<Settings>): Settings {
-    const next = this.getSettings();
+    const own: Record<string, unknown> = {}, shared: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(patch)) {
-      if (k in DEFAULT_SETTINGS) (next as any)[k] = v;
+      if (!(k in DEFAULT_SETTINGS)) continue;
+      if (this.shared && (SHARED_SETTINGS as readonly string[]).includes(k)) shared[k] = v; else own[k] = v;
     }
-    this.settingsCache = next;
-    this.writeJson("settings.json", next);
-    return { ...next };
+    if (Object.keys(shared).length) this.shared!.updateSettings(shared as Partial<Settings>);
+    if (Object.keys(own).length || !this.settingsCache) {
+      const next = { ...DEFAULT_SETTINGS, ...(this.readJson<Partial<Settings>>("settings.json") ?? {}), ...own } as Settings;
+      this.settingsCache = next;
+      this.writeJson("settings.json", next);
+    }
+    return this.getSettings();
   }
 
   // -------------------------------------------------------------- secrets
   getSecret(name: SecretName): string {
+    if (this.shared && SHARED_SECRETS.includes(name)) return this.shared.getSecret(name);
     const all = this.readJson<Record<string, string>>("secrets.json") ?? {};
     if (!all[name]) return "";
     try { return this.cipher.decrypt(all[name]); } catch { return ""; }
   }
 
   setSecret(name: SecretName, value: string | null) {
+    if (this.shared && SHARED_SECRETS.includes(name)) { this.shared.setSecret(name, value); return; }
     const all = this.readJson<Record<string, string>>("secrets.json") ?? {};
     if (value) all[name] = this.cipher.encrypt(value);
     else delete all[name];
@@ -125,6 +142,7 @@ export class Store {
 
   // ---------------------------------------------------------------- quota
   addQuota(units: number) {
+    if (this.shared) { this.shared.addQuota(units); return; }
     const day = quotaDay();
     this.index.quota[day] = (this.index.quota[day] ?? 0) + units;
     const days = Object.keys(this.index.quota).sort();
@@ -133,10 +151,12 @@ export class Store {
   }
 
   quotaUsed(): number {
+    if (this.shared) return this.shared.quotaUsed();
     return this.index.quota[quotaDay()] ?? 0;
   }
 
   quotaHistory(days = 14): { day: string; units: number }[] {
+    if (this.shared) return this.shared.quotaHistory(days);
     return Object.entries(this.index.quota).sort(([a], [b]) => a.localeCompare(b)).slice(-days).map(([day, units]) => ({ day, units }));
   }
 

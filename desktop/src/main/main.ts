@@ -9,6 +9,7 @@ import { CHROME, TITLEBAR_HEIGHT } from "../shared/chrome";
 import { claude } from "./ai";
 import { signIn } from "./oauth";
 import { FilePersist, osCipher } from "./persist";
+import { MAIN, Profiles } from "./profiles";
 import { setupUpdates } from "./updates";
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
@@ -89,6 +90,12 @@ function createWindow() {
       if (isSafeExternal(url)) shell.openExternal(url);
     }
   });
+  loadApp();
+}
+
+/** Load the app at its start page (also used after switching channel, so no page re-runs from its old address). */
+function loadApp() {
+  if (!win) return;
   if (DEV_URL) win.loadURL(DEV_URL);
   else win.loadFile(path.join(__dirname, "../renderer/index.html"));
 }
@@ -97,7 +104,34 @@ app.whenReady().then(() => {
   if (!primary) return;
   Menu.setApplicationMenu(null);
   const dataDir = process.env.NICHERADAR_HOME || path.join(app.getPath("userData"), "data");
-  engine = new Engine(new Store(new FilePersist(dataDir), osCipher(safeStorage)), { desktop: true, ai: claude, fetcher: (url, init) => net.fetch(url, init) });
+  const cipher = osCipher(safeStorage);
+  const mainStore = new Store(new FilePersist(dataDir), cipher);
+  const profiles = new Profiles(dataDir);
+  const makeEngine = (id: string) => new Engine(id === MAIN ? mainStore : new Store(new FilePersist(profiles.dir(id)), cipher, mainStore),
+    { desktop: true, ai: claude, fetcher: (url, init) => net.fetch(url, init) });
+  engine = makeEngine(profiles.active);
+
+  // Channel profiles: switching swaps the engine and reloads the window so every page starts fresh.
+  const switchTo = (id: string) => { profiles.setActive(id); engine = makeEngine(id); loadApp(); };
+  const wrap = (fn: (...a: any[]) => unknown) => async (_e: unknown, ...a: any[]) => {
+    try { return { ok: true, data: await fn(...a) }; } catch (e: any) { return { ok: false, error: e?.message ?? String(e) }; }
+  };
+  ipcMain.handle("profiles:list", wrap(() => profiles.list()));
+  ipcMain.handle("profiles:create", wrap((name: string) => { const p = profiles.create(String(name ?? "")); switchTo(p.id); return p; }));
+  ipcMain.handle("profiles:switch", wrap((id: string) => { if (id !== profiles.active) switchTo(String(id)); return profiles.list(); }));
+  ipcMain.handle("profiles:rename", wrap((id: string, name: string) => { profiles.rename(String(id), String(name ?? "")); return profiles.list(); }));
+  ipcMain.handle("profiles:remove", wrap((id: string) => {
+    const wasActive = profiles.active === id;
+    profiles.remove(String(id));
+    if (wasActive) switchTo(MAIN);
+    return profiles.list();
+  }));
+  // After a channel is added in Settings, name its profile after it unless the user already named it.
+  ipcMain.handle("profiles:autoname", wrap((title: string) => {
+    const p = profiles.list().list.find((x) => x.id === profiles.active);
+    if (p && title && /^(Main channel|Channel \d+)$/.test(p.name)) profiles.rename(p.id, String(title));
+    return profiles.list();
+  }));
 
   ipcMain.handle("engine", async (_e, method: EngineMethod, args: unknown[]) => {
     if (!ENGINE_METHODS.includes(method)) return { ok: false, error: `Unknown method ${method}` };
@@ -150,7 +184,7 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle("open-data-folder", async () => {
-    await shell.openPath(dataDir);
+    await shell.openPath(engine.store.location);
     return { ok: true };
   });
 
