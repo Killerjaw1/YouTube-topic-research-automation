@@ -83,7 +83,7 @@ export class Analytics {
     const u = new URL(AUTH_URL);
     Object.entries({
       client_id: id, redirect_uri: redirect, response_type: "code", scope: SCOPES.join(" "), access_type: "offline",
-      prompt: "consent", include_granted_scopes: "true", state, code_challenge: challenge, code_challenge_method: "S256",
+      prompt: "select_account consent", include_granted_scopes: "true", state, code_challenge: challenge, code_challenge_method: "S256",
     }).forEach(([k, v]) => u.searchParams.set(k, v));
     return u.toString();
   }
