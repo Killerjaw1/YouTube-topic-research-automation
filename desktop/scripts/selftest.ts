@@ -433,6 +433,29 @@ async function main() {
     assert.throws(() => again.dir("../x"), /bad profile id/);
     fs.rmSync(dir, { recursive: true, force: true });
   });
+  await test("Backup and restore: everything but keys, sign-ins and the cache", async () => {
+    const src = new Engine(new Store(new MemoryPersist()), { desktop: false });
+    src.store.setSecret("youtube_api_key", "AIzaSECRET");
+    const rep = await src.analyze("crow intelligence");
+    src.addIdea({ title: "Crows hold grudges", planned_for: "2026-12-01" });
+    src.addGoal("subs", 1000, null);
+    src.saveTemplate({ name: "Animals", description: "x" });
+    src.store.cacheSet("k", 1);
+    const b = src.exportBackup();
+    assert.ok(b.filename.endsWith(".json"));
+    assert.ok(!b.text.includes("AIzaSECRET") && !b.text.includes("secrets.json") && !b.text.includes("cache/"), "no secrets or cache in a backup");
+    const dst = new Engine(new Store(new MemoryPersist()), { desktop: false });
+    dst.addIdea({ title: "will be replaced" });
+    const r = dst.importBackup(b.text);
+    assert.deepEqual(r, { scans: 1, ideas: 1 });
+    assert.equal(dst.listIdeas().ideas[0].planned_for, "2026-12-01");
+    assert.equal(dst.getScan(rep.scan_id!).payload.keyword, "crow intelligence");
+    assert.equal(dst.listGoals().length, 1);
+    assert.equal(dst.listTemplates()[0].name, "Animals");
+    assert.throws(() => dst.importBackup("not json"), /isn’t a NicheRadar backup/);
+    assert.throws(() => dst.importBackup(JSON.stringify({ app: "Other" })), /isn’t a NicheRadar backup/);
+    assert.throws(() => dst.importBackup(JSON.stringify({ app: "NicheRadar", kind: "backup", files: { "../evil.json": "{}" } })), /isn’t a NicheRadar backup/, "unknown or unsafe file names are ignored");
+  });
   await test("Scans: list, CSV, delete", () => {
     const scans = engine.listScans();
     assert.ok(scans.length >= 2);

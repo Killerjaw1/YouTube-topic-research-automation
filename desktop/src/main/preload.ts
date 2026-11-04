@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("nicheradar", {
   call: (method: string, ...args: unknown[]) => ipcRenderer.invoke("engine", method, args),
   connectAnalytics: () => ipcRenderer.invoke("analytics:connect"),
   saveFile: (filename: string, text: string) => ipcRenderer.invoke("save-file", filename, text),
+  openTextFile: () => ipcRenderer.invoke("open-text-file"),
   exportPdf: (filename: string) => ipcRenderer.invoke("export-pdf", filename),
   openExternal: (url: string) => ipcRenderer.invoke("open-external", url),
   openDataFolder: () => ipcRenderer.invoke("open-data-folder"),

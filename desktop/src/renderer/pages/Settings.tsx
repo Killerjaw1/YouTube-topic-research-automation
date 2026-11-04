@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import type { PublicSettings } from "../../core/types";
-import { appVersion, call, isDesktop, openDataFolder, profiles, type UpdateState, updates } from "../api";
+import { appVersion, call, isDesktop, openDataFolder, openTextFile, profiles, saveFile, type UpdateState, updates } from "../api";
 import { ChannelsGroup } from "../components/Channels";
-import { Banner, Button, Segmented, SettingRow, SettingsGroup, Status, Switch } from "../components/kit";
+import { Banner, Button, Dialog, Segmented, SettingRow, SettingsGroup, Status, Switch } from "../components/kit";
 import { Loading, PageHead, type ThemePref, useApp } from "../components/ui";
 import { fmt } from "../format";
 import { useConnectAnalytics } from "./Analytics";
@@ -18,7 +18,7 @@ function HowTo({ summary, children }: { summary: string; children: React.ReactNo
 }
 
 export function SettingsPage() {
-  const { toast, fail, refresh, theme, setTheme } = useApp();
+  const { toast, fail, refresh, theme, setTheme, modal } = useApp();
   const connect = useConnectAnalytics();
   const [s, setS] = useState<PublicSettings | null>(null);
   const [keys, setKeys] = useState({ yt: "", ai: "", gSecret: "", channel: "" });
@@ -264,6 +264,26 @@ export function SettingsPage() {
           {isDesktop && <Button size="sm" icon="folder" onClick={openDataFolder}>Open folder</Button>}
         </SettingRow>
         <SettingRow title="Keys and sign-in" desc="API keys and your Google sign-in are encrypted with your Windows account." />
+        <SettingRow title="Back up" desc="Save this channel’s reports, ideas, watchlist, plans, goals and settings to one file. API keys and sign-ins are never included.">
+          <Button size="sm" icon="download" disabled={!isDesktop} onClick={async () => {
+            try { const b = await call("exportBackup"); const p = await saveFile(b); if (p) toast("Backup saved", "ok", p); } catch (e) { fail(e, "The backup wasn’t saved"); }
+          }}>Save backup…</Button>
+        </SettingRow>
+        <SettingRow title="Restore" desc="Replace this channel’s data with a backup, for example on a new computer. Keys and sign-ins stay as they are.">
+          <Button size="sm" icon="upload" disabled={!isDesktop} onClick={() => modal((close) => (
+            <Dialog title="Restore from a backup?" desc="The reports, ideas, watchlist, plans and settings of this channel are replaced by the backup’s. Save a backup first if you might want them back."
+              footer={<><Button onClick={close}>Cancel</Button><Button variant="danger" onClick={async () => {
+                close();
+                try {
+                  const text = await openTextFile();
+                  if (!text) return;
+                  const r = await call("importBackup", text);
+                  toast("Backup restored", "ok", `${r.scans} reports and ${r.ideas} ideas.`);
+                  setTimeout(() => { location.hash = "#/"; location.reload(); }, 900);
+                } catch (e) { fail(e, "The backup wasn’t restored"); }
+              }}>Choose backup…</Button></>} />
+          ))}>Restore…</Button>
+        </SettingRow>
         <SettingRow title="Cached results" desc="Saved YouTube responses that let repeat searches skip the quota.">
           <Button size="sm" onClick={async () => { try { const r = await call("clearCache"); toast("Cache cleared", "ok", `${r.cleared} saved ${r.cleared === 1 ? "response" : "responses"} removed.`); } catch (e) { fail(e, "The cache wasn’t cleared"); } }}>Clear cache</Button>
         </SettingRow>

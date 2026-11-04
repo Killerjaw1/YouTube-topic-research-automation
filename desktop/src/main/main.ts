@@ -1,6 +1,6 @@
 /** Electron main process: window, IPC bridge to the engine, files, PDF export, Google sign-in, updates. */
 
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, Notification, safeStorage, screen, shell } from "electron";
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, nativeTheme, net, Notification, safeStorage, screen, shell, Tray } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { Engine, ENGINE_METHODS, type EngineMethod } from "../core/engine";
@@ -153,9 +153,10 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle("save-file", async (_e, filename: string, text: string) => {
+    const json = /\.json$/i.test(filename);
     const res = await dialog.showSaveDialog(win!, {
       defaultPath: path.join(app.getPath("documents"), path.basename(filename)),
-      filters: [{ name: "CSV", extensions: ["csv"] }],
+      filters: [json ? { name: "NicheRadar backup", extensions: ["json"] } : { name: "CSV", extensions: ["csv"] }],
     });
     if (res.canceled || !res.filePath) return { ok: true, data: null };
     fs.writeFileSync(res.filePath, text, "utf8");
@@ -176,6 +177,15 @@ app.whenReady().then(() => {
       fs.writeFileSync(res.filePath, pdf);
     } finally { win!.setBackgroundColor(bg); }
     return { ok: true, data: res.filePath };
+  });
+
+  // Pick a backup file to restore; returns its text, or null when cancelled.
+  ipcMain.handle("open-text-file", async () => {
+    const res = await dialog.showOpenDialog(win!, { properties: ["openFile"], filters: [{ name: "NicheRadar backup", extensions: ["json"] }] });
+    if (res.canceled || !res.filePaths[0]) return { ok: true, data: null };
+    const stat = fs.statSync(res.filePaths[0]);
+    if (stat.size > 200 * 1024 * 1024) return { ok: false, error: "That file is too large to be a NicheRadar backup." };
+    return { ok: true, data: fs.readFileSync(res.filePaths[0], "utf8") };
   });
 
   ipcMain.handle("open-external", async (_e, url: string) => {
@@ -199,12 +209,48 @@ app.whenReady().then(() => {
 
   if (IS_WIN) app.setAppUserModelId("app.nicheradar.desktop"); // notifications show under the app's name
   createWindow();
+  setupQuickAdd();
   setupUpdates(() => win, () => engine.store.getSettings().auto_update);
   // Background checks: weekly watchlist re-score, Monday summary and early-hit alerts.
   setTimeout(runBackgroundChecks, 60_000);
   setInterval(runBackgroundChecks, 6 * 3600_000);
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
+
+// ------------------------------------------------------------ tray and quick add
+let tray: Tray | null = null;
+const QUICK_ADD = "CommandOrControl+Shift+N";
+
+function showWindow() {
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show(); win.focus();
+}
+
+/** Bring NicheRadar forward with the New idea dialog open. */
+function quickAdd() {
+  showWindow();
+  win?.webContents.send("app-event", { type: "new-idea" });
+}
+
+/** A tray icon (open, new idea, quit) and a global shortcut to save an idea from anywhere while the app runs. */
+function setupQuickAdd() {
+  try {
+    const icon = nativeImage.createFromPath(path.join(__dirname, "../../build/icon.png")).resize({ width: 16, height: 16 });
+    tray = new Tray(icon);
+    tray.setToolTip("NicheRadar");
+    tray.setContextMenu(Menu.buildFromTemplate([
+      { label: "Open NicheRadar", click: showWindow },
+      { label: "New idea…", accelerator: QUICK_ADD, click: quickAdd },
+      { type: "separator" },
+      { label: "Quit", click: () => app.quit() },
+    ]));
+    tray.on("click", showWindow);
+  } catch (e) { console.error("tray", e); }
+  try { globalShortcut.register(QUICK_ADD, quickAdd); } catch { /* another app owns the shortcut */ }
+}
+
+app.on("will-quit", () => { globalShortcut.unregisterAll(); tray?.destroy(); });
 
 /** A Windows notification that opens a page in NicheRadar when clicked. */
 function notify(title: string, body: string, hash: string) {

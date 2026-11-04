@@ -15,6 +15,7 @@ interface Bridge {
   connectAnalytics(): Promise<{ ok: boolean; data?: any; error?: string }>;
   saveFile(filename: string, text: string): Promise<{ ok: boolean; data?: string | null }>;
   openExternal(url: string): Promise<unknown>;
+  openTextFile?(): Promise<{ ok: boolean; data?: string | null; error?: string }>;
   openDataFolder(): Promise<unknown>;
   exportPdf(filename: string): Promise<{ ok: boolean; data?: string | null }>;
   setTheme(theme: "dark" | "light"): Promise<unknown>;
@@ -30,7 +31,7 @@ interface Bridge {
   platform: string;
 }
 
-export type AppEvent = { type: "navigate"; hash: string } | { type: "refresh" };
+export type AppEvent = { type: "navigate"; hash: string } | { type: "refresh" } | { type: "new-idea" };
 
 export type UpdateState =
   | { state: "idle" | "checking" | "none" | "unsupported" }
@@ -135,6 +136,14 @@ export const profiles = {
     return r.data;
   },
 };
+
+/** Ask the user for a backup file and return its text (desktop only); null when cancelled. */
+export async function openTextFile(): Promise<string | null> {
+  if (!bridge?.openTextFile) return null;
+  const r = await bridge.openTextFile();
+  if (!r.ok) throw new ApiError(r.error ?? "The file couldn’t be opened.");
+  return r.data ?? null;
+}
 
 /** Listen for messages from the desktop app's main process (such as a notification being clicked). */
 export function onAppEvent(cb: (e: AppEvent) => void): () => void {

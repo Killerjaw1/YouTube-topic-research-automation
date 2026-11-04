@@ -72,6 +72,28 @@ export class Store {
   private writeJson(name: string, value: unknown) { this.persist.write(name, JSON.stringify(value)); }
   private saveIndex() { this.writeJson("index.json", this.index); }
 
+  // ------------------------------------------------------------ backup
+  /** Everything this profile keeps except secrets and the cache: reports, ideas, watchlist, settings, documents. */
+  exportFiles(): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const name of ["index.json", "settings.json", ...this.persist.list("scans/"), ...this.persist.list("docs/")]) {
+      const text = this.persist.read(name);
+      if (text != null && /^(index|settings)\.json$|^scans\/\d+\.json$|^docs\/[a-z0-9_-]+\.json$/.test(name)) out[name] = text;
+    }
+    return out;
+  }
+
+  /** Replace this profile's data with a backup's files (secrets and cache stay as they are). */
+  importFiles(files: Record<string, string>) {
+    const ok = Object.keys(files).filter((n) => /^(index|settings)\.json$|^scans\/\d+\.json$|^docs\/[a-z0-9_-]+\.json$/.test(n));
+    if (!ok.includes("index.json")) throw new Error("This file isn’t a NicheRadar backup.");
+    for (const n of ok) JSON.parse(files[n]); // every file must be valid JSON before anything is written
+    for (const name of [...this.persist.list("scans/"), ...this.persist.list("docs/")]) this.persist.remove(name);
+    for (const n of ok) this.persist.write(n, files[n]);
+    this.index = this.readJson<Index>("index.json") ?? { nextScan: 1, nextIdea: 1, scans: [], ideas: [], quota: {} };
+    this.settingsCache = null;
+  }
+
   // ------------------------------------------------------------ small documents
   /** A small JSON document by name (goals, competitors, templates...), or `fallback` if it doesn't exist. */
   getDoc<T>(name: string, fallback: T): T {

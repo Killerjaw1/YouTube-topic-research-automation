@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { isWindows, onAppEvent, profiles, type UpdateState, updates } from "./api";
 import { switchChannelDialog } from "./components/Channels";
+import { ideaModal } from "./components/IdeaModal";
 import { CommandPalette, type NavItem } from "./components/CommandPalette";
 import { Icon } from "./components/Icon";
 import { Button, Dialog, Status, type Tone } from "./components/kit";
@@ -71,6 +72,7 @@ export function ShortcutsDialog({ close }: { close(): void }) {
     ["/", "Move to the search box on this page"],
     ["Ctrl 1 – 9", "Go to a section"],
     ["Ctrl ,", "Open settings"],
+    ...(isWindows || profiles.supported ? [["Ctrl Shift N", "New idea, from anywhere in Windows while NicheRadar runs"] as [string, string]] : []),
     ["Ctrl /", "Show these shortcuts"],
     ["Esc", "Close a dialog or the details panel"],
   ];
@@ -125,7 +127,8 @@ export function App() {
   useEffect(() => onAppEvent((e) => {
     if (e.type === "navigate") location.hash = e.hash;
     else if (e.type === "refresh") refresh();
-  }), [refresh]);
+    else if (e.type === "new-idea") ideaModal(modal, { status: "idea" }, refresh);
+  }), [refresh, modal]);
 
   // Global keyboard shortcuts.
   useEffect(() => {

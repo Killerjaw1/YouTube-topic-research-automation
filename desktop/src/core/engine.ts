@@ -352,6 +352,26 @@ export class Engine {
     } catch { return []; }
   }
 
+  // ------------------------------------------------------------------- backup
+  /** A backup of this channel's NicheRadar data as one JSON file. API keys and sign-ins are never included. */
+  exportBackup(): { filename: string; text: string } {
+    const files = this.store.exportFiles();
+    const name = (this.settings.my_channel?.title ?? "channel").replace(/[^\w -]+/g, "").trim() || "channel";
+    return {
+      filename: `NicheRadar backup - ${name} - ${new Date().toISOString().slice(0, 10)}.json`,
+      text: JSON.stringify({ app: "NicheRadar", kind: "backup", version: VERSION, created: new Date().toISOString(), files }, null, 1),
+    };
+  }
+
+  /** Restore a backup into the current channel profile, replacing its reports, ideas, plans and settings. */
+  importBackup(text: string): { scans: number; ideas: number } {
+    let doc: any;
+    try { doc = JSON.parse(text); } catch { throw new UserError("This file isn’t a NicheRadar backup. Choose a .json file saved from Settings, under Data and privacy."); }
+    if (doc?.app !== "NicheRadar" || doc?.kind !== "backup" || typeof doc.files !== "object") throw new UserError("This file isn’t a NicheRadar backup. Choose a .json file saved from Settings, under Data and privacy.");
+    try { this.store.importFiles(doc.files); } catch (e: any) { throw new UserError(e?.message ?? "The backup couldn’t be read."); }
+    return { scans: this.store.listScans().length, ideas: this.store.listIdeas().length };
+  }
+
   // ------------------------------------------------------------- upload tools
   listTemplates(): Template[] { return this.store.getDoc<Template[]>("templates", []); }
   saveTemplate(t: Partial<Template> & { name: string }): Template[] {
@@ -758,7 +778,7 @@ export class Engine {
 export const ENGINE_METHODS = [
   "status", "getSettings", "saveSettings", "forgetSecret", "testYouTube", "clearCache", "suggest", "analyze", "discover", "outliers",
   "categories", "trending", "reddit", "viewerQuestions", "dayEvents", "risingWiki", "alreadyMade",
-  "listTemplates", "saveTemplate", "deleteTemplate", "applyTemplate", "listTests", "saveTest", "deleteTest", "thumbnailContext",
+  "exportBackup", "importBackup", "listTemplates", "saveTemplate", "deleteTemplate", "applyTemplate", "listTests", "saveTest", "deleteTest", "thumbnailContext",
   "plannerStats", "listGoals", "addGoal", "deleteGoal", "goalsProgress", "weeklySummary",
   "listCompetitors", "addCompetitor", "removeCompetitor", "competitorFeed", "findCollaborators", "connectChannel", "forgetChannel", "aiAngles", "aiMetadata", "aiPrompt", "aiDraftPrompt", "aiScriptPrompt", "aiTranslatePrompt", "aiFactCheckPrompt", "optimizeCheck", "analyticsStatus",
   "analyticsOverview", "analyticsRetention", "analyticsSeries", "analyticsOpenings", "analyticsGrowth", "analyticsSearchTerms", "analyticsAudience", "analyticsCatalog",
