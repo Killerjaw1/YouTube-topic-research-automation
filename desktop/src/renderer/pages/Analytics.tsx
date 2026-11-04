@@ -61,9 +61,9 @@ export function AnalyticsPage({ route }: { route: Route }) {
         </Banner>
       )}
       <div className="kpis mb">
-        <div className="kpi"><span className="label">Views</span><div className="value">{fmt(t.views)}</div><div className="secondary">{delta(t.views, p.views)} on the previous period</div></div>
+        <div className="kpi"><span className="label">Views</span><div className="value">{fmt(t.views)}</div><div className="secondary">{delta(t.views, p.views) ? <>{delta(t.views, p.views)} on the previous period</> : "No earlier period to compare"}</div></div>
         <div className="kpi"><span className="label">Watch time</span><div className="value">{fmt((t.estimatedMinutesWatched ?? 0) / 60)} h</div>
-          <div className="secondary">{delta(t.estimatedMinutesWatched, p.estimatedMinutesWatched)} · {fmtDur(Math.round(t.averageViewDuration ?? 0))} average view</div></div>
+          <div className="secondary">{delta(t.estimatedMinutesWatched, p.estimatedMinutesWatched) && <>{delta(t.estimatedMinutesWatched, p.estimatedMinutesWatched)} · </>}{fmtDur(Math.round(t.averageViewDuration ?? 0))} average view</div></div>
         <div className="kpi"><span className="label">Average viewed</span><div className="value">{(t.averageViewPercentage ?? 0).toFixed(1)}%</div><div className="secondary">50% or more is strong</div></div>
         <div className="kpi"><span className="label">{ctr != null ? "Click-through rate" : "Net subscribers"}</span>
           <div className="value">{ctr != null ? ctr.toFixed(1) + "%" : fmt((t.subscribersGained ?? 0) - (t.subscribersLost ?? 0))}</div>

@@ -230,22 +230,28 @@ export function insights(ov: Overview): Insight[] {
     const ch = ((views - prev.views) / prev.views) * 100;
     tips.push({ type: ch >= 0 ? "good" : "bad", text: `Views are ${ch >= 0 ? "up" : "down"} ${Math.abs(ch).toFixed(1)}% versus the previous ${ov.days} days.` });
   }
-  const avp = t.averageViewPercentage ?? 0;
-  if (avp && avp < 35) tips.push({ type: "bad", text: `Viewers watch ${avp.toFixed(0)}% of your videos on average. That’s low. Get to the point faster: show the payoff in the first 15 seconds and cut slow sections. Open a video’s retention curve below to see where people leave.` });
-  else if (avp >= 50) tips.push({ type: "good", text: `Strong retention: viewers watch ${avp.toFixed(0)}% on average. YouTube rewards this. Your content holds attention, so focus on getting more clicks (titles and thumbnails).` });
-  else if (avp) tips.push({ type: "info", text: `Average view percentage is ${avp.toFixed(0)}%. Aim for 50%+ with tighter intros and pattern interrupts.` });
-
   const total = ov.traffic.reduce((a, x) => a + x.views, 0) || 1;
   const share = Object.fromEntries(ov.traffic.map((x) => [x.insightTrafficSourceType, x.views / total]));
   const pct = (v: number) => `${Math.round(v * 100)}%`;
+  // Shorts don't have end screens or thumbnails in the feed, and get little Suggested traffic, so long-form tips don't apply.
+  const shortsFirst = (share.SHORTS ?? 0) >= 0.5;
+  const avp = t.averageViewPercentage ?? 0;
+  if (avp && avp < 35) tips.push({ type: "bad", text: `Viewers watch ${avp.toFixed(0)}% of your videos on average. That’s low. Get to the point faster: show the payoff in the first 15 seconds and cut slow sections. Open a video’s retention curve below to see where people leave.` });
+  else if (avp >= 50) tips.push({ type: "good", text: shortsFirst
+    ? `Strong retention: viewers watch ${avp.toFixed(0)}% on average. In the Shorts feed, the first second decides whether people swipe away, so keep testing hooks that state the question straight away.`
+    : `Strong retention: viewers watch ${avp.toFixed(0)}% on average. YouTube rewards this. Your content holds attention, so focus on getting more clicks (titles and thumbnails).` });
+  else if (avp) tips.push({ type: "info", text: `Average view percentage is ${avp.toFixed(0)}%. Aim for 50%+ with tighter intros and pattern interrupts.` });
+
   if ((share.YT_SEARCH ?? 0) >= 0.35) tips.push({ type: "info", text: `${pct(share.YT_SEARCH)} of views come from search. Titles and descriptions that match what people type matter most for you, so use Analyze to find winnable search phrases.` });
-  if ((share.RELATED_VIDEO ?? 0) < 0.12 && total > 500) tips.push({ type: "info", text: "Few views come from Suggested videos. Make videos that answer the follow-up question to popular videos in your niche, and use similar topics and wording, so YouTube recommends you next to them." });
+  if (!shortsFirst && (share.RELATED_VIDEO ?? 0) < 0.12 && total > 500) tips.push({ type: "info", text: "Few views come from Suggested videos. Make videos that answer the follow-up question to popular videos in your niche, and use similar topics and wording, so YouTube recommends you next to them." });
   if ((share.SUBSCRIBER ?? 0) >= 0.3) tips.push({ type: "good", text: "Browse features (Home feed) drive a big share of your views. YouTube is actively recommending you. Thumbnail and title CTR is now your biggest lever." });
-  if ((share.SHORTS ?? 0) >= 0.5) tips.push({ type: "info", text: "Most views come from the Shorts feed. Shorts viewers rarely subscribe. Link a related long video from each Short to build watch time." });
-  if ((share.END_SCREEN ?? 0) < 0.02 && total > 500) tips.push({ type: "info", text: "End screens bring almost no views. Point every end screen at your best related video or a playlist." });
+  if ((share.SHORTS ?? 0) >= 0.5) tips.push({ type: "info", text: `${pct(share.SHORTS)} of views come from the Shorts feed. Shorts viewers rarely subscribe, so set a related video on each Short (in YouTube Studio, under Related video) and turn your best topics into series viewers come back for.` });
+  if (!shortsFirst && (share.END_SCREEN ?? 0) < 0.02 && total > 500) tips.push({ type: "info", text: "End screens bring almost no views. Point every end screen at your best related video or a playlist." });
 
   const perK = (((t.subscribersGained ?? 0) - (t.subscribersLost ?? 0)) / views) * 1000;
-  tips.push({ type: perK >= 5 ? "good" : "info", text: `You gain ${perK.toFixed(1)} net subscribers per 1,000 views. ${perK >= 5 ? "That is a strong conversion rate." : "Give viewers a clear reason to subscribe mid-video (what’s coming next), not only at the end."}` });
+  tips.push({ type: perK >= 5 ? "good" : "info", text: `You gain ${perK.toFixed(1)} net subscribers per 1,000 views. ${perK >= 5 ? "That is a strong conversion rate."
+    : shortsFirst ? "That’s common for Shorts. Recurring series and a closing line that teases the next one give viewers a reason to subscribe."
+    : "Give viewers a clear reason to subscribe mid-video (what’s coming next), not only at the end."}` });
 
   if (ov.ctr?.ctr != null) {
     const c = ov.ctr.ctr <= 1 ? ov.ctr.ctr * 100 : ov.ctr.ctr;

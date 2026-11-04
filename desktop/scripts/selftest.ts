@@ -241,6 +241,17 @@ async function main() {
     assert.ok(tips.some((t) => t.type === "bad" && t.text.includes("22%")));
     assert.ok(tips.some((t) => t.type === "bad" && t.text.includes("click-through rate is 2.1%")));
   });
+  await test("Shorts-first channels skip long-form tips", () => {
+    const ov = { ...demoOverview(28), traffic: [
+      { insightTrafficSourceType: "SHORTS", label: "Shorts feed", views: 8700, estimatedMinutesWatched: 0 },
+      { insightTrafficSourceType: "SUBSCRIBER", label: "Browse features", views: 500, estimatedMinutesWatched: 0 },
+      { insightTrafficSourceType: "YT_SEARCH", label: "YouTube search", views: 400, estimatedMinutesWatched: 0 },
+      { insightTrafficSourceType: "RELATED_VIDEO", label: "Suggested videos", views: 30, estimatedMinutesWatched: 0 },
+    ] };
+    const tips = insights(ov);
+    assert.ok(tips.some((t) => t.text.includes("Shorts feed")));
+    assert.ok(!tips.some((t) => /end screen|Suggested videos/i.test(t.text)), "no end-screen or Suggested tips for Shorts");
+  });
   await test("Retention curve: weak hook and steep drop detected", () => {
     const pts = Array.from({ length: 101 }, (_, i) => ({ elapsedVideoTimeRatio: i / 100, audienceWatchRatio: i < 10 ? 1 - i * 0.06 : i === 50 ? 0.2 : 0.35, relativeRetentionPerformance: 0.3 }));
     const tips = retentionInsights(pts);
