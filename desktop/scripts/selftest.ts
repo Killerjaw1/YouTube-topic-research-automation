@@ -191,6 +191,23 @@ async function main() {
     engine.untrack("INDOOR PLANTS");
     assert.equal(engine.listTracked().length, 0);
   });
+  await test("Format focus: Shorts-only and long-form-only scoring", async () => {
+    const s = await engine.analyze("pac man secrets", "quick", "short");
+    assert.equal(s.focus, "short");
+    assert.ok(s.videos.length >= 15 && s.videos.every((v) => v.format === "short" && v.duration_s <= 180), "only Shorts are scored");
+    assert.ok(s.reasons[0].text.startsWith("Scored against Shorts only"));
+    assert.equal(s.formats.recommended?.format, "short");
+    const l = await engine.analyze("pac man secrets", "quick", "long");
+    assert.ok(l.videos.length > 0 && l.videos.every((v) => v.format === "long"), "only long-form is scored");
+    const all = await engine.analyze("pac man secrets", "quick");
+    assert.equal(all.focus, "all");
+    assert.ok(!all.reasons[0].text.startsWith("Scored against"));
+    engine.track("pac man secrets", s.scan_id);
+    const t = await engine.refreshTracked("pac man secrets");
+    const latest = engine.getScan(t!.history[t!.history.length - 1].scan_id).payload as typeof s;
+    assert.equal(latest.focus, "short", "re-scoring keeps the topic's format focus");
+    engine.untrack("pac man secrets");
+  });
   await test("Scans: list, CSV, delete", () => {
     const scans = engine.listScans();
     assert.ok(scans.length >= 2);

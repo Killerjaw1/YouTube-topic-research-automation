@@ -2,6 +2,8 @@
 
 export type SizeClass = "small" | "mid" | "big" | "unknown";
 export type VideoFormat = "short" | "long";
+/** Which videos a topic is scored against: everything that ranks, Shorts only, or long-form only. */
+export type Focus = "all" | "short" | "long";
 export type Tone = "great" | "good" | "warn" | "bad";
 
 export interface MyChannel {
@@ -164,6 +166,7 @@ export interface Report {
   thresholds: { small_max: number; big_min: number; fresh_days?: number };
   demo?: boolean;
   depth?: "quick" | "deep";
+  focus?: Focus;
   suggestions?: string[];
   quota_cost?: number;
   created?: number;

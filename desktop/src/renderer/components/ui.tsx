@@ -18,7 +18,8 @@ export function parseRoute(): Route {
 }
 
 export const go = (hash: string) => { location.hash = hash; };
-export const analyzeLink = (q: string, depth?: string) => `#/analyze?run=1&q=${encodeURIComponent(q)}${depth ? `&depth=${depth}` : ""}`;
+export const analyzeLink = (q: string, depth?: string, focus?: string) =>
+  `#/analyze?run=1&q=${encodeURIComponent(q)}${depth ? `&depth=${depth}` : ""}${focus && focus !== "all" ? `&focus=${focus}` : ""}`;
 
 // -------------------------------------------------------------------- theme
 export type ThemePref = "system" | "dark" | "light";

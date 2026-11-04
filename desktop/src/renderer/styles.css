@@ -480,6 +480,7 @@ ol.steps-list li:first-child { border-top: 0; padding-top: 0; }
 ol.steps-list li::before { content: counter(s); flex: none; width: 18px; height: 18px; border-radius: var(--radius-sm); background: var(--bg-active); color: var(--text-2); display: grid; place-items: center; font-size: var(--fs-xs); font-weight: 600; margin-top: 1px; }
 
 .format-cmp { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
+.format-cmp.single { grid-template-columns: minmax(0, 1fr); }
 .format-cmp > div { padding: var(--s3); border-radius: var(--radius-lg); background: var(--bg-sunken); border: 1px solid var(--border-subtle); }
 .format-cmp > div.win { border-color: color-mix(in srgb, var(--ok) 35%, var(--border)); }
 .format-cmp h4 { margin: 0 0 var(--s2); font-size: var(--fs); font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

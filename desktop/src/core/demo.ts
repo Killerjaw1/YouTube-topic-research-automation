@@ -45,7 +45,7 @@ export class DemoYouTube implements YouTubeSource {
     return this.chans.get(cid);
   }
 
-  private make(q: string, n: number, recentDays?: number, salt = ""): string[] {
+  private make(q: string, n: number, recentDays?: number, salt = "", onlyShort?: boolean): string[] {
     const topic = rng("topic", q.toLowerCase());
     const popularity = topic.uniform(2.0, 4.4); // log10 of typical views/day
     const dominance = topic.uniform(0.05, 0.9); // how much big channels own this topic
@@ -66,7 +66,7 @@ export class DemoYouTube implements YouTubeSource {
       let vpd = 10 ** (popularity + r.gauss(0, 0.45)) * (subs / 1e6) ** 0.35;
       if (!big && r.random() < breakout) vpd *= r.uniform(4, 30); // a small-channel breakout
       const views = Math.min(Math.floor(vpd * Math.max(age, 1) ** 0.85), subs * 300); // keep demo outliers believable
-      const short = r.random() < shortsBias;
+      const short = onlyShort ?? r.random() < shortsBias;
       const pool = TEMPLATES.filter((t) => t.includes("#shorts") === short);
       const template = r.choice(pool);
       const title = cap(template.replace("{k}", r.random() < 0.6 ? q : r.choice(words)).replace(/\s+/g, " "));
@@ -88,7 +88,8 @@ export class DemoYouTube implements YouTubeSource {
 
   async search(q: string, o: SearchOptions = {}): Promise<string[]> {
     const recent = o.publishedAfter ? Math.max(1, Math.round((Date.now() - o.publishedAfter.getTime()) / 86400000)) : undefined;
-    const ids = this.make(q, o.maxResults ?? 50, recent, `${o.order ?? "relevance"}${recent ?? ""}`);
+    const only = o.videoDuration === "short" ? true : o.videoDuration ? false : undefined;
+    const ids = this.make(q, o.maxResults ?? 50, recent, `${o.order ?? "relevance"}${recent ?? ""}${o.videoDuration ?? ""}`, only);
     const v = (id: string) => this.vids.get(id);
     if (o.order === "viewCount") ids.sort((a, b) => +v(b).statistics.viewCount - +v(a).statistics.viewCount);
     if (o.order === "date") ids.sort((a, b) => v(b).snippet.publishedAt.localeCompare(v(a).snippet.publishedAt));

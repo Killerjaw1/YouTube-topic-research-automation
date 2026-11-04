@@ -40,6 +40,8 @@ export interface SearchOptions {
   publishedAfter?: Date;
   region?: string;
   language?: string;
+  /** YouTube's duration filter: short is under 4 minutes, medium 4–20, long over 20. */
+  videoDuration?: "short" | "medium" | "long";
 }
 
 /** The interface both the real client and the demo client implement. */
@@ -112,6 +114,7 @@ export class YouTubeClient implements YouTubeSource {
       regionCode: o.region,
       relevanceLanguage: o.language,
       publishedAfter: o.publishedAfter ? o.publishedAfter.toISOString().replace(/\.\d+Z$/, "Z") : undefined,
+      videoDuration: o.videoDuration,
       safeSearch: "none",
     });
     return (data.items ?? []).map((it: any) => it?.id?.videoId).filter(Boolean);

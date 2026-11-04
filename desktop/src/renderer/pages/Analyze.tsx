@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { AIAngles, AIMetadata, Report, RetentionPlan, VideoRow } from "../../core/types";
+import type { AIAngles, AIMetadata, Focus, Report, RetentionPlan, VideoRow } from "../../core/types";
 import { call, exportPdf, openExternal, saveFile } from "../api";
 import { ScoreRing, Scatter } from "../components/charts";
 import { Icon } from "../components/Icon";
@@ -13,8 +13,8 @@ import { ago, fmt, store, tone } from "../format";
 import { OutlierGrid } from "./Outliers";
 
 /** Navigate to an analysis; if we're already on that exact URL, run it again in place. */
-function runFromUrl(q: string, depth: string, rerun: () => void) {
-  const target = analyzeLink(q, depth);
+function runFromUrl(q: string, depth: string, focus: Focus, rerun: () => void) {
+  const target = analyzeLink(q, depth, focus);
   if (location.hash === target) rerun();
   else go(target);
 }
@@ -39,10 +39,21 @@ export function scoringHelp(modal: ReturnType<typeof useApp>["modal"]) {
   ));
 }
 
+const FOCUS_LABEL: Record<Focus, string> = { all: "All videos", short: "Shorts only", long: "Long-form only" };
+
+/** The format to score against: the link's, then the last one chosen, then Shorts for channels that mostly post Shorts. */
+function initialFocus(param: string | null, shortsShare?: number): Focus {
+  if (param === "short" || param === "long" || param === "all") return param;
+  const saved = store<Focus>("focus");
+  if (saved) return saved;
+  return shortsShare != null && shortsShare >= 0.6 ? "short" : "all";
+}
+
 export function AnalyzePage({ route }: { route: Route }) {
-  const { refresh, modal } = useApp();
+  const { refresh, modal, status } = useApp();
   const q = route.params.get("q") ?? "";
   const [depth, setDepth] = useState<"quick" | "deep">((route.params.get("depth") as any) || store<"quick" | "deep">("depth") || "quick");
+  const [focus, setFocus] = useState<Focus>(() => initialFocus(route.params.get("focus"), status?.my_channel?.shorts_share));
   const [state, setState] = useState<{ loading?: boolean; report?: Report; error?: string }>({});
   const [nonce, setNonce] = useState(0);
 
@@ -50,7 +61,7 @@ export function AnalyzePage({ route }: { route: Route }) {
     if (!q || !route.params.get("run")) return;
     let live = true;
     setState({ loading: true });
-    call("analyze", q, depth)
+    call("analyze", q, depth, focus)
       .then((report) => { if (live) { setState({ report }); refresh(); } })
       .catch((e) => live && setState({ error: e.message }));
     return () => { live = false; };
@@ -64,10 +75,12 @@ export function AnalyzePage({ route }: { route: Route }) {
       </PageHead>
       <DemoBanner />
       <Card className="search-card mb">
-        <SearchBox value={q} autoFocus={!q} onSubmit={(kw) => runFromUrl(kw, depth, () => setNonce((n) => n + 1))} />
+        <SearchBox value={q} autoFocus={!q} onSubmit={(kw) => runFromUrl(kw, depth, focus, () => setNonce((n) => n + 1))} />
         <div className="row mt-sm">
           <Segmented label="Scan depth" value={depth} onChange={(d) => { setDepth(d); store("depth", d); }} options={[["quick", "Standard"], ["deep", "Deep"]]} />
-          <span className="secondary">{depth === "deep" ? "About 204 quota units. Also looks at the most-viewed uploads from the last 90 days." : "About 102 quota units. Looks at the top 50 search results."}</span>
+          <Segmented label="Compare with" value={focus} onChange={(f) => { setFocus(f); store("focus", f); }} options={[["all", "All videos"], ["short", "Shorts"], ["long", "Long-form"]]} />
+          <span className="secondary">{depth === "deep" ? "About 204 quota units. Also looks at the most-viewed uploads from the last 90 days." : "About 102 quota units. Looks at the top 50 search results."}
+            {focus === "short" ? " Scores against Shorts only." : focus === "long" ? " Scores against long-form videos only." : ""}</span>
         </div>
       </Card>
       {state.loading && <Loading title="Analyzing" rows={6} steps={[`Searching YouTube for “${q}”`, depth === "deep" ? "Collecting recent top uploads" : "Collecting video statistics",
@@ -95,7 +108,7 @@ export function ReportPage({ id }: { id: number }) {
     <>
       <PageHead title="Topic report" desc={`Saved ${rep.created ? ago(rep.created, true) : ""}. Opening a saved report uses no quota.`}>
         <Button href="#/history" icon="arrowLeft">History</Button>
-        <Button href={analyzeLink(rep.keyword, rep.depth)} icon="refresh">Run again</Button>
+        <Button href={analyzeLink(rep.keyword, rep.depth, rep.focus)} icon="refresh">Run again</Button>
       </PageHead>
       <ReportView report={rep} />
     </>
@@ -119,6 +132,7 @@ function ReportView({ report: rep }: { report: Report }) {
   const [tracked, setTracked] = useState(false);
   useEffect(() => { call("listTracked").then((t) => setTracked(t.some((x) => x.keyword === rep.keyword.toLowerCase()))).catch(() => undefined); }, [rep.keyword]);
   const f = rep.formats, rec = f.recommended ?? { format: "either", why: "" };
+  const focused = rep.focus === "short" || rep.focus === "long";
   const m = rep.metrics, th = rep.thresholds;
   const all = useMemo(() => {
     const seen = new Set<string>();
@@ -169,6 +183,7 @@ function ReportView({ report: rep }: { report: Report }) {
             <div className="report-meta">
               <span>{Number(m.results ?? 0)} results</span>
               <span>{rep.depth === "deep" ? "Deep scan" : "Standard scan"}</span>
+              {rep.focus && rep.focus !== "all" && <span>{FOCUS_LABEL[rep.focus]}</span>}
               <span>Small means under {fmt(th.small_max)} subscribers</span>
               {rep.quota_cost != null && !rep.demo && <span>{rep.quota_cost ? `${rep.quota_cost} quota units` : "From cache, no quota used"}</span>}
               {rep.created && <span>{ago(rep.created)}</span>}
@@ -207,11 +222,11 @@ function ReportView({ report: rep }: { report: Report }) {
 
       <div className="grid g-report">
         <Card title="Findings"><Reasons items={rep.reasons} /></Card>
-        <Card title="Recommended format" sub={rec.why}>
-          <div className="format-cmp mt-sm">
-            {(["short", "long"] as const).map((k) => {
+        <Card title={focused ? (rep.focus === "short" ? "Shorts that rank" : "Long-form videos that rank") : "Recommended format"} sub={rec.why}>
+          <div className={`format-cmp mt-sm ${focused ? "single" : ""}`}>
+            {(focused ? [rep.focus as "short" | "long"] : (["short", "long"] as const)).map((k) => {
               const s = f[k];
-              const win = rec.format === k || rec.format === "both";
+              const win = !focused && (rec.format === k || rec.format === "both");
               return (
                 <div key={k} className={win ? "win" : ""}>
                   <h4><Icon name={k === "short" ? "phone" : "play"} />{k === "short" ? "Shorts" : "Long-form"}{win && <Tag tone="ok">Recommended</Tag>}</h4>

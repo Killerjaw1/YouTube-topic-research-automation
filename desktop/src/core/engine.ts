@@ -10,8 +10,8 @@ import { analyze, effectiveSmallMax, enrich, findOutliers, isBreakout, sizeClass
 import { autocomplete, expand, redditTop } from "./sources";
 import type { Store } from "./store";
 import {
-  type AIAngles, type AIMetadata, type Candidate, type Idea, IDEA_STATUSES, type MyChannel, type OutlierResult, type PublicSettings,
-  type RedditPost, type Report, type RetentionPlan, type Scan, type ScanMeta, type Settings, type Status, type Tracked, UserError,
+  type AIAngles, type AIMetadata, type Candidate, type Focus, type Idea, IDEA_STATUSES, type MyChannel, type OutlierResult, type PublicSettings,
+  type RedditPost, type Report, type RetentionPlan, type Scan, type ScanMeta, type Settings, type Status, type Tracked, UserError, type VideoRow,
 } from "./types";
 import { csv, median, round } from "./util";
 import { publishedAfterDays, YouTubeClient, type YouTubeSource } from "./youtube";
@@ -140,21 +140,37 @@ export class Engine {
     return { videos, channels };
   }
 
-  async analyze(keyword: string, depth: "quick" | "deep" = "quick"): Promise<Report> {
+  /**
+   * Score a topic. `focus` limits the competition to Shorts (searched with YouTube's under-4-minutes
+   * filter, then kept to 3 minutes or less) or to long-form videos, for channels that only make one format.
+   */
+  async analyze(keyword: string, depth: "quick" | "deep" = "quick", focus: Focus = "all"): Promise<Report> {
     keyword = keyword.trim();
     if (!keyword) throw new UserError("Enter a topic to analyze.");
+    if (focus !== "short" && focus !== "long") focus = "all";
     const s = this.settings, yt = this.yt();
     const before = this.store.quotaUsed();
-    const ids = await yt.search(keyword, { maxResults: 50, region: s.region, language: s.language });
+    const videoDuration = focus === "short" ? "short" as const : undefined;
+    const ids = await yt.search(keyword, { maxResults: 50, region: s.region, language: s.language, videoDuration });
     const recentIds = depth === "deep"
-      ? await yt.search(keyword, { maxResults: 50, order: "viewCount", publishedAfter: publishedAfterDays(90), region: s.region, language: s.language })
+      ? await yt.search(keyword, { maxResults: 50, order: "viewCount", publishedAfter: publishedAfterDays(90), region: s.region, language: s.language, videoDuration })
       : [];
     const { videos, channels } = await this.rowsFor([...ids, ...recentIds]);
     const byId = new Map(videos.map((v) => [v.id, v]));
     const pick = (list: string[]) => list.map((i) => byId.get(i)).filter(Boolean);
-    const rows = enrich(pick(ids), channels, ids);
-    const recent = recentIds.length ? enrich(pick(recentIds), channels, recentIds) : [];
+    const keep = (r: VideoRow) => focus === "all" || (focus === "short" ? r.duration_s > 0 && r.duration_s <= 180 : r.format === "long");
+    const fit = (r: VideoRow) => (focus === "short" ? { ...r, format: "short" as const } : r);
+    const rows = enrich(pick(ids), channels, ids).filter(keep).map(fit);
+    const recent = recentIds.length ? enrich(pick(recentIds), channels, recentIds).filter(keep).map(fit) : [];
     const report = analyze(keyword, rows, s, recent);
+    report.focus = focus;
+    if (focus !== "all") {
+      report.formats.recommended = { format: focus, why: `Only ${focus === "short" ? "Shorts were" : "long-form videos were"} compared. Analyze with All videos to see which format does better for this topic.` };
+      const what = focus === "short" ? "Shorts" : "long-form videos";
+      report.reasons.unshift({ type: "info", text: rows.length >= 15
+        ? `Scored against ${what} only: ${rows.length} of the top results.`
+        : `Scored against ${what} only, but just ${rows.length} rank for this topic, so treat the score with caution.` });
+    }
     report.demo = this.isDemo();
     report.depth = depth;
     report.suggestions = await this.suggest(keyword);
@@ -181,9 +197,12 @@ export class Engine {
 
   untrack(keyword: string) { this.store.untrack(keyword); return { ok: true }; }
 
-  /** Re-score a tracked topic with fresh data (a quick scan) and record the result. */
+  /** Re-score a tracked topic with fresh data (a quick scan, same format focus as its last check) and record the result. */
   async refreshTracked(keyword: string): Promise<Tracked | undefined> {
-    await this.analyze(keyword, "quick");
+    const t = this.store.listTracked().find((x) => x.keyword === keyword.trim().toLowerCase());
+    const last = t?.history[t.history.length - 1];
+    const focus = (last && (this.store.getScan(last.scan_id)?.payload as Report | undefined)?.focus) || "all";
+    await this.analyze(keyword, "quick", focus);
     return this.store.listTracked().find((t) => t.keyword === keyword.trim().toLowerCase());
   }
 
