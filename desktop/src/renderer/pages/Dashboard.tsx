@@ -4,7 +4,40 @@ import { call } from "../api";
 import { Sparkline } from "../components/charts";
 import { Button, Card, EmptyState, ListRow } from "../components/kit";
 import { analyzeLink, Delta, DemoBanner, go, PageHead, ScorePill, SearchBox, useApp, Verdict } from "../components/ui";
-import { ago } from "../format";
+import { ago, fmt } from "../format";
+import type { WeeklySummary } from "../../core/planner";
+
+/** Last 7 days on your channel, what moved on the watchlist, and what's planned next. */
+function WeekCard() {
+  const [s, setS] = useState<WeeklySummary | null>(null);
+  useEffect(() => { call("weeklySummary").then(setS).catch(() => undefined); }, []);
+  if (!s) return null;
+  const day = (d: string) => new Date(d + "T12:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  return (
+    <Card className="mb" title="Last 7 days" sub={`${day(s.start)} to ${day(s.end)}${s.demo ? " · sample data" : ""}`} actions={<Button size="sm" variant="ghost" href="#/analytics">Analytics</Button>}>
+      <div className="week-stats">
+        <div><span className="label">Views</span><b>{fmt(s.views)}</b>{s.views_change != null && <span className={`delta ${s.views_change >= 0 ? "up" : "down"}`}>{s.views_change >= 0 ? "+" : "−"}{Math.abs(s.views_change)}%</span>}</div>
+        <div><span className="label">Watch time</span><b>{fmt(s.watch_hours)} h</b></div>
+        <div><span className="label">Subscribers</span><b>{s.subs >= 0 ? "+" : "−"}{fmt(Math.abs(s.subs))}</b></div>
+        <div className="grow"><span className="label">Best video</span><b className="ellipsis" style={{ display: "block" }}>{s.best ? s.best.title : "–"}</b>{s.best && <span className="secondary">{fmt(s.best.views)} views</span>}</div>
+      </div>
+      {(s.watchlist.length > 0 || s.planned.length > 0 || s.uploaded.length > 0) && (
+        <div className="grid g2 mt">
+          <div>
+            <span className="section-label" style={{ marginTop: 0 }}>Watchlist this week</span>
+            {s.watchlist.length ? s.watchlist.map((w) => <div key={w.keyword} className="row between small"><span className="t2">{w.keyword}</span><span className="tabular">{w.from} → {w.to} <Delta value={w.to - w.from} /></span></div>)
+              : <p className="secondary" style={{ margin: 0 }}>No score changes.</p>}
+          </div>
+          <div>
+            <span className="section-label" style={{ marginTop: 0 }}>Planned next 7 days</span>
+            {s.planned.length ? s.planned.map((p) => <div key={p.title + p.planned_for} className="row between small nowrap"><span className="t2 ellipsis">{p.title}</span><span className="muted nowrap">{day(p.planned_for)}</span></div>)
+              : <p className="secondary" style={{ margin: 0 }}>Nothing scheduled. <a className="link" href="#/planner">Open the planner</a>.</p>}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
 
 const EXAMPLES = ["home espresso on a budget", "beginner chess openings", "solo travel japan", "ai tools for students"];
 const STAGES: [string, string, string][] = [["idea", "Ideas", "cat-1"], ["researching", "Researching", "cat-4"], ["scripting", "Scripting", "cat-2"], ["filming", "Filming and editing", "cat-1"], ["uploaded", "Uploaded", "cat-3"]];
@@ -44,6 +77,8 @@ export function Dashboard() {
           </div>
         )}
       </Card>
+
+      {(status.analytics_connected || !status.desktop) && <WeekCard />}
 
       <div className="kpis mb">
         <div className="kpi"><span className="label">Topics analyzed</span><div className="value">{status.counts.scans}</div><div className="secondary">{strong} rated strong</div></div>

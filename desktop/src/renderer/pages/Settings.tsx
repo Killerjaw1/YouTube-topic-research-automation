@@ -8,7 +8,7 @@ import { useConnectAnalytics } from "./Analytics";
 import { REGIONS } from "./Trending";
 
 const LINK = (href: string, text: string) => <a href={href} target="_blank" rel="noopener">{text}</a>;
-const SECTIONS: [string, string][] = [["youtube", "YouTube data"], ["channel", "Your channel"], ["analytics", "YouTube Analytics"], ["research", "Research"], ["watchlist", "Watchlist"], ["reddit", "Reddit"],
+const SECTIONS: [string, string][] = [["youtube", "YouTube data"], ["channel", "Your channel"], ["analytics", "YouTube Analytics"], ["research", "Research"], ["watchlist", "Watchlist"], ["notifications", "Notifications"], ["reddit", "Reddit"],
   ["ai", "AI assistant"], ["appearance", "Appearance"], ["updates", "Updates"], ["data", "Data and privacy"]];
 const RESEARCH_KEYS = ["region", "language", "small_channel_max", "big_channel_min", "fresh_days", "cache_hours", "daily_quota"] as const;
 
@@ -199,6 +199,15 @@ export function SettingsPage() {
       <SettingsGroup id="s-watchlist" title="Watchlist">
         <SettingRow title="Check every week" desc="Re-scores tracked topics once a week while NicheRadar is open, about 102 quota units each, and notifies you when one improves.">
           <Switch label="Check the watchlist every week" checked={s.weekly_check} disabled={!isDesktop} onChange={(v) => save({ weekly_check: v }, v ? "Weekly check turned on" : "Weekly check turned off")} />
+        </SettingRow>
+      </SettingsGroup>
+
+      <SettingsGroup id="s-notifications" title="Notifications" desc="Windows notifications while NicheRadar is open. They need YouTube Analytics or your channel in Settings.">
+        <SettingRow title="Weekly summary" desc="Each Monday: last week’s views, subscribers and best video, and what’s planned next.">
+          <Switch label="Weekly summary" checked={s.weekly_summary} disabled={!isDesktop} onChange={(v) => save({ weekly_summary: v }, v ? "Weekly summary turned on" : "Weekly summary turned off")} />
+        </SettingRow>
+        <SettingRow title="Early hit alerts" desc="When a new upload beats your typical video’s total views within 3 days, so you can follow up while it’s hot. About 8 quota units a day.">
+          <Switch label="Early hit alerts" checked={s.early_alerts} disabled={!isDesktop} onChange={(v) => save({ early_alerts: v }, v ? "Early hit alerts turned on" : "Early hit alerts turned off")} />
         </SettingRow>
       </SettingsGroup>
 

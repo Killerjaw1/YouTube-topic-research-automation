@@ -13,12 +13,12 @@ import { fmt, store } from "../format";
 /** Turn a question or an event into a search phrase worth analyzing: lowercase, no trailing punctuation. */
 const toPhrase = (s: string) => s.replace(/[?!.]+$/, "").replace(/\s+/g, " ").trim().toLowerCase();
 
-function IdeaActions({ topic, notes, title }: { topic: string; notes?: string; title?: string }) {
+function IdeaActions({ topic, notes, title, planned }: { topic: string; notes?: string; title?: string; planned?: string }) {
   const { modal } = useApp();
   const focus = store<Focus>("focus") ?? "all";
   return <>
     <Button size="sm" variant="ghost" iconOnly icon="script" label="Write a script" onClick={() => scriptDialog(modal, { topic, title, notes })} />
-    <Button size="sm" variant="ghost" iconOnly icon="bookmark" label="Save idea" onClick={() => ideaModal(modal, { title: title ?? topic, keyword: topic, notes })} />
+    <Button size="sm" variant="ghost" iconOnly icon="bookmark" label="Save idea" onClick={() => ideaModal(modal, { title: title ?? topic, keyword: topic, notes, planned_for: planned ?? null })} />
     <Button size="sm" href={analyzeLink(topic, undefined, focus)}>Analyze</Button>
   </>;
 }
@@ -105,7 +105,7 @@ export function OnThisDayTab() {
       {state.loading && <Loading title="Loading events" rows={6} />}
       {state.error && <Empty icon="warn" title="Events couldn’t be loaded" actions={<Button onClick={() => setDate(date.slice(0))}>Try again</Button>}>{state.error}</Empty>}
       {state.events && (list.length ? (
-        <Card flush title={`${list.length} events on ${label}`} sub="Round anniversaries first. Save one with a date to plan it.">
+        <Card flush title={`${list.length} events on ${label}`} sub="Round anniversaries first. Saving one schedules it two days before the date on the planner.">
           <div className="list">
             {list.map((e) => (
               <ListRow key={e.text} title={e.text}
@@ -114,7 +114,8 @@ export function OnThisDayTab() {
                 end={<>
                   {e.url && <Button size="sm" variant="ghost" iconOnly icon="external" label="Open on Wikipedia" href={e.url} target="_blank" rel="noopener" />}
                   <IdeaActions topic={toPhrase(e.page || e.text)} title={e.round ? `${e.page}: ${ordinal(e.years_ago)} anniversary` : e.page || e.text}
-                    notes={`${label}: ${e.text}${e.round ? ` (${ordinal(e.years_ago)} anniversary)` : ""}. Publish a few days before.`} />
+                    notes={`${label}: ${e.text}${e.round ? ` (${ordinal(e.years_ago)} anniversary)` : ""}. Publish a few days before.`}
+                    planned={(() => { const d = new Date(date + "T12:00"); d.setDate(d.getDate() - 2); return d >= new Date() ? isoDay(d) : date; })()} />
                 </>} />
             ))}
           </div>

@@ -48,13 +48,15 @@ export function IdeaFields({ f, set }: { f: IdeaDraft; set(k: keyof IdeaDraft): 
         <label className="field">Format<select className="select" value={f.format} onChange={set("format")}>{[["long", "Long-form"], ["short", "Short"], ["both", "Both"], ["either", "Not decided"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
         <label className="field">Stage<select className="select" value={f.status} onChange={set("status")}>{IDEA_STATUSES.map((s) => <option key={s} value={s}>{STATUS_META[s][0]}</option>)}</select></label>
       </div>
+      <label className="field"><span>Publish on <span className="hint">optional, shows on the planner</span></span>
+        <input className="input" type="date" value={f.planned_for} onChange={set("planned_for")} style={{ maxWidth: 200 }} /></label>
       <label className="field">Notes<textarea className="input" rows={6} value={f.notes} onChange={set("notes")} /></label>
     </>
   );
 }
 
-export interface IdeaDraft { title: string; keyword: string; format: string; status: string; notes: string }
-export const draftOf = (d: Partial<Idea>): IdeaDraft => ({ title: d.title ?? "", keyword: d.keyword ?? "", format: d.format ?? "long", status: d.status ?? "idea", notes: d.notes ?? "" });
+export interface IdeaDraft { title: string; keyword: string; format: string; status: string; notes: string; planned_for: string }
+export const draftOf = (d: Partial<Idea>): IdeaDraft => ({ title: d.title ?? "", keyword: d.keyword ?? "", format: d.format ?? "long", status: d.status ?? "idea", notes: d.notes ?? "", planned_for: d.planned_for ?? "" });
 
 function IdeaForm({ data, close, onSaved }: { data: Partial<Idea>; close(): void; onSaved?: () => void }) {
   const { toast, fail, refresh } = useApp();

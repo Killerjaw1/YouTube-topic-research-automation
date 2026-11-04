@@ -166,39 +166,63 @@ app.whenReady().then(() => {
   if (IS_WIN) app.setAppUserModelId("app.nicheradar.desktop"); // notifications show under the app's name
   createWindow();
   setupUpdates(() => win, () => engine.store.getSettings().auto_update);
-  // Weekly watchlist check: a minute after start, then every 6 hours while the app is open. It only runs once 7 days have passed.
-  setTimeout(runWeeklyCheck, 60_000);
-  setInterval(runWeeklyCheck, 6 * 3600_000);
+  // Background checks: weekly watchlist re-score, Monday summary and early-hit alerts.
+  setTimeout(runBackgroundChecks, 60_000);
+  setInterval(runBackgroundChecks, 6 * 3600_000);
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
-let weeklyRunning = false;
-async function runWeeklyCheck() {
-  if (weeklyRunning || !engine) return;
-  weeklyRunning = true;
+/** A Windows notification that opens a page in NicheRadar when clicked. */
+function notify(title: string, body: string, hash: string) {
+  if (!Notification.isSupported()) return;
+  const n = new Notification({ title, body, icon: path.join(__dirname, "../../build/icon.png") });
+  n.on("click", () => {
+    if (!win) return;
+    if (win.isMinimized()) win.restore();
+    win.show(); win.focus();
+    win.webContents.send("app-event", { type: "navigate", hash });
+  });
+  n.show();
+}
+
+const fmtN = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `${Math.round(n / 1e3)}K` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(Math.round(n)));
+
+/**
+ * Background checks while the app is open (a minute after start, then every 6 hours): the weekly watchlist
+ * re-score, the Monday summary, and early-hit alerts for new uploads. Each one does nothing unless it's due.
+ */
+let backgroundRunning = false;
+async function runBackgroundChecks() {
+  if (backgroundRunning || !engine) return;
+  backgroundRunning = true;
   try {
-    const r = await engine.weeklyCheck();
-    if (!r.ran) return;
-    win?.webContents.send("app-event", { type: "refresh" });
-    if (!r.improved.length || !Notification.isSupported()) return;
-    const [first] = [...r.improved].sort((a, b) => b.to - b.from - (a.to - a.from));
-    const more = r.improved.length - 1;
-    const n = new Notification({
-      title: r.improved.length === 1 ? "A tracked topic improved" : `${r.improved.length} tracked topics improved`,
-      body: `“${first.keyword}” went from ${first.from} to ${first.to}.${more ? ` ${more} more in your watchlist.` : ""}`,
-      icon: path.join(__dirname, "../../build/icon.png"),
-    });
-    n.on("click", () => {
-      if (!win) return;
-      if (win.isMinimized()) win.restore();
-      win.show(); win.focus();
-      win.webContents.send("app-event", { type: "navigate", hash: "#/watchlist" });
-    });
-    n.show();
-  } catch (e) {
-    console.error("weekly check", e);
+    try {
+      const r = await engine.weeklyCheck();
+      if (r.ran) {
+        win?.webContents.send("app-event", { type: "refresh" });
+        if (r.improved.length) {
+          const [first] = [...r.improved].sort((a, b) => b.to - b.from - (a.to - a.from));
+          const more = r.improved.length - 1;
+          notify(r.improved.length === 1 ? "A tracked topic improved" : `${r.improved.length} tracked topics improved`,
+            `“${first.keyword}” went from ${first.from} to ${first.to}.${more ? ` ${more} more in your watchlist.` : ""}`, "#/watchlist");
+        }
+      }
+    } catch (e) { console.error("weekly check", e); }
+    try {
+      const s = await engine.summaryIfDue();
+      if (s) {
+        const change = s.views_change == null ? "" : ` (${s.views_change >= 0 ? "+" : "−"}${Math.abs(s.views_change)}%)`;
+        const best = s.best ? ` Best: “${s.best.title.slice(0, 50)}”.` : "";
+        notify("Your week on YouTube", `${fmtN(s.views)} views${change}, ${s.subs >= 0 ? "+" : "−"}${Math.abs(s.subs)} subscribers.${best}`, "#/");
+      }
+    } catch (e) { console.error("weekly summary", e); }
+    try {
+      for (const h of (await engine.earlyHitCheck()).slice(0, 2)) {
+        notify("A new upload is taking off", `“${h.title.slice(0, 60)}” already has ${fmtN(h.views)} views in ${h.hours} hours, ${h.multiple}× your typical video. Make a follow-up while it’s hot.`, "#/analytics");
+      }
+    } catch (e) { console.error("early hits", e); }
   } finally {
-    weeklyRunning = false;
+    backgroundRunning = false;
   }
 }
 

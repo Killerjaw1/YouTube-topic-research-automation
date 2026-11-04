@@ -43,6 +43,9 @@ export class MemoryPersist implements Persist {
   list(prefix: string) { return [...this.data.keys()].filter((k) => k.startsWith(prefix)); }
 }
 
+/** A YYYY-MM-DD date, or null. */
+const validDay = (v: unknown): string | null => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) ? v : null);
+
 export class Store {
   private index: Index;
   private settingsCache: Settings | null = null;
@@ -222,6 +225,7 @@ export class Store {
       status: IDEA_STATUSES.includes(data.status as any) ? data.status! : "idea",
       notes: data.notes || "",
       scan_id: data.scan_id ?? null,
+      planned_for: validDay(data.planned_for),
       created: now,
       updated: now,
     };
@@ -238,6 +242,7 @@ export class Store {
       if (k === "status" && !IDEA_STATUSES.includes(data.status as any)) continue;
       (idea as any)[k] = data[k];
     }
+    if (data.planned_for !== undefined) idea.planned_for = validDay(data.planned_for);
     idea.updated = Date.now() / 1000;
     this.saveIndex();
     return idea;

@@ -51,7 +51,8 @@ export interface YouTubeSource {
   videos(ids: string[]): Promise<any[]>;
   channels(ids: string[]): Promise<any[]>;
   channelLookup(text: string): Promise<any | null>;
-  recentUploads(uploadsPlaylist: string, limit?: number): Promise<any[]>;
+  /** A channel's latest uploads. `fresh` skips the cache (for early-hit checks). */
+  recentUploads(uploadsPlaylist: string, limit?: number, fresh?: boolean): Promise<any[]>;
   /** Top-level comments on a video, most relevant first. Empty when comments are off. */
   comments(videoId: string, max?: number): Promise<{ text: string; likes: number }[]>;
   trending(region: string, category?: string): Promise<any[]>;
@@ -154,10 +155,13 @@ export class YouTubeClient implements YouTubeSource {
     return data.items?.[0] ?? null;
   }
 
-  async recentUploads(uploadsPlaylist: string, limit = 15): Promise<any[]> {
-    const data = await this.get("playlistItems", { part: "contentDetails", playlistId: uploadsPlaylist, maxResults: Math.min(limit, 50) });
+  async recentUploads(uploadsPlaylist: string, limit = 15, fresh = false): Promise<any[]> {
+    const data = await this.get("playlistItems", { part: "contentDetails", playlistId: uploadsPlaylist, maxResults: Math.min(limit, 50) }, !fresh);
     const ids = (data.items ?? []).map((it: any) => it.contentDetails.videoId);
-    return ids.length ? this.videos(ids) : [];
+    if (!ids.length) return [];
+    if (!fresh) return this.videos(ids);
+    const v = await this.get("videos", { part: "snippet,statistics,contentDetails", id: ids.join(",") }, false);
+    return v.items ?? [];
   }
 
   async comments(videoId: string, max = 100): Promise<{ text: string; likes: number }[]> {

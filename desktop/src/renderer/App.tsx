@@ -19,6 +19,7 @@ import { SettingsPage } from "./pages/Settings";
 import { TrendingPage } from "./pages/Trending";
 import { WatchlistPage } from "./pages/Watchlist";
 import { CompetitorsPage } from "./pages/Competitors";
+import { PlannerPage } from "./pages/Planner";
 
 const SECTIONS: [string, NavItem[]][] = [
   ["Research", [
@@ -34,6 +35,7 @@ const SECTIONS: [string, NavItem[]][] = [
     { id: "compare", label: "Compare", icon: "columns" },
     { id: "optimizer", label: "Upload optimizer", icon: "wand", shortcut: "Ctrl 7" },
     { id: "ideas", label: "Idea board", icon: "board", shortcut: "Ctrl 8" },
+    { id: "planner", label: "Planner", icon: "calendar" },
   ]],
   ["Channel", [
     { id: "analytics", label: "Analytics", icon: "chart", shortcut: "Ctrl 9" },
@@ -56,6 +58,7 @@ const PAGES: Record<string, { render(r: Route): ReactNode; narrow?: boolean }> =
   compare: { render: (r) => <ComparePage route={r} /> },
   optimizer: { render: (r) => <OptimizerPage route={r} /> },
   ideas: { render: () => <IdeasPage /> },
+  planner: { render: () => <PlannerPage /> },
   analytics: { render: (r) => <AnalyticsPage route={r} /> },
   history: { render: () => <HistoryPage /> },
   settings: { render: () => <SettingsPage />, narrow: true },

@@ -41,6 +41,11 @@ export interface Settings {
   last_weekly_check: number;
   /** Optional Reddit "installed app" client ID for reliable read-only access. */
   reddit_client_id: string;
+  /** Monday notification with last week's numbers, and the week it was last sent (YYYY-MM-DD of that Monday). */
+  weekly_summary: boolean;
+  last_summary_week: string;
+  /** Notify when a new upload takes off in its first three days. */
+  early_alerts: boolean;
 }
 
 export interface WeeklyCheckResult {
@@ -71,6 +76,9 @@ export const DEFAULT_SETTINGS: Settings = {
   weekly_check: false,
   last_weekly_check: 0,
   reddit_client_id: "",
+  weekly_summary: true,
+  last_summary_week: "",
+  early_alerts: true,
 };
 
 /** Values kept apart from settings and encrypted at rest in the desktop app. */
@@ -231,6 +239,8 @@ export interface Idea {
   status: IdeaStatus;
   notes: string;
   scan_id: number | null;
+  /** Planned publish date, YYYY-MM-DD, or null when not scheduled. */
+  planned_for?: string | null;
   created: number;
   updated: number;
 }

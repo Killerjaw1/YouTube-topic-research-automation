@@ -7,7 +7,7 @@ import { Button, DetailPanel, Dialog, Facts } from "../components/kit";
 import { FormatBadge, PageHead, ScorePill, useApp } from "../components/ui";
 import { ago } from "../format";
 
-function IdeaEditor({ idea, onSaved, onClose }: { idea: Idea; onSaved(): void; onClose(): void }) {
+export function IdeaEditor({ idea, onSaved, onClose }: { idea: Idea; onSaved(): void; onClose(): void }) {
   const { toast, fail, refresh, modal } = useApp();
   const [f, setF] = useState<IdeaDraft>(draftOf(idea));
   const [busy, setBusy] = useState(false);
@@ -86,7 +86,7 @@ export function IdeasPage() {
                   <div className="row between nowrap">{i.score != null ? <ScorePill score={i.score} /> : <span />}{i.format && <FormatBadge format={i.format} />}</div>
                   <div className="title">{i.title}</div>
                   {i.notes && <div className="notes">{i.notes}</div>}
-                  <div className="secondary">{ago(i.updated)}</div>
+                  <div className="secondary">{i.planned_for ? `Publish ${new Date(i.planned_for + "T12:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}` : ago(i.updated)}</div>
                 </button>
               ))}
               {!items.length && <div className="secondary" style={{ padding: "4px" }}>{st === "idea" ? "Save ideas from any report, or add one here." : "Drag ideas here."}</div>}

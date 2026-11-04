@@ -464,7 +464,8 @@ export function demoChannelVideos(): ChannelVideo[] {
   ];
   return rows.map(([title, views, avp, dur], i) => ({
     video: `demo${i}`, title, thumbnail: "", views, averageViewPercentage: avp, averageViewDuration: Math.round((dur * avp) / 100),
-    subscribersGained: Math.round(views * (dur > 180 ? 0.009 : 0.0012) * r.uniform(0.7, 1.3)), duration_s: dur, published_at: null,
+    subscribersGained: Math.round(views * (dur > 180 ? 0.009 : 0.0012) * r.uniform(0.7, 1.3)), duration_s: dur,
+    published_at: new Date(Date.now() - (3 + i * 6 + r.int(0, 4)) * 86400000).toISOString(),
   }));
 }
 

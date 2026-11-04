@@ -6,6 +6,7 @@
 import { Analytics, demoAudience, demoChannelVideos, demoGrowth, demoOpenings, demoOverview, demoRetention, demoSearchTerms, demoSeries } from "./analytics";
 import { channelFeed, type CollabChannel, collabCandidates, type Competitor, type CompetitorSummary, type FeedVideo, summarize } from "./competitors";
 import { lengthReport, type SavedOpening, subscriberDrivers } from "./growth";
+import { type Current, earlyHits, type EarlyHit, type Goal, type GoalMetric, goalProgress, GOAL_LABEL, rhythm, weekdayStats, weekKey, type WeeklySummary } from "./planner";
 import { type CommentText, type DayEvent, demoDayEvents, demoRising, extractQuestions, onThisDay, type RisingArticle, risingArticles, similarUploads, type SimilarUpload, type ViewerQuestion, wikiTop } from "./ideas";
 import { DemoYouTube, demoReddit, demoSuggestions } from "./demo";
 import { checkDraft, playbook, type Draft } from "./optimize";
@@ -113,7 +114,7 @@ export class Engine {
     for (const k of ["small_channel_max", "big_channel_min", "daily_quota", "fresh_days", "cache_hours"] as const) {
       if (patch[k] !== undefined && num(patch[k])) (clean as any)[k] = num(patch[k]);
     }
-    for (const k of ["demo_mode", "auto_small_threshold", "auto_update", "onboarded", "weekly_check"] as const) if (patch[k] !== undefined) clean[k] = Boolean(patch[k]);
+    for (const k of ["demo_mode", "auto_small_threshold", "auto_update", "onboarded", "weekly_check", "weekly_summary", "early_alerts"] as const) if (patch[k] !== undefined) clean[k] = Boolean(patch[k]);
     if (patch.google_client_id !== undefined) clean.google_client_id = String(patch.google_client_id).trim();
     if (patch.reddit_client_id !== undefined) clean.reddit_client_id = String(patch.reddit_client_id).trim().slice(0, 64);
     this.store.updateSettings(clean);
@@ -348,6 +349,102 @@ export class Engine {
       const uploads = await this.yt().recentUploads("UU" + mine.id.slice(2), 50);
       return similarUploads(text, uploads.map((v) => ({ title: v.snippet?.title ?? "", video: v.id, views: Number(v.statistics?.viewCount) || 0 })));
     } catch { return []; }
+  }
+
+  // ------------------------------------------------------------------ planner
+  /** Your latest uploads from the YouTube Data API (needs your channel in Settings). */
+  private async myUploads(limit = 50, fresh = false): Promise<{ id: string; title: string; views: number; published_at: string | null }[]> {
+    const mine = this.settings.my_channel;
+    if (!mine) return [];
+    const vids = await this.yt().recentUploads("UU" + mine.id.slice(2), limit, fresh);
+    return vids.map((v) => ({ id: v.id, title: v.snippet?.title ?? "", views: Number(v.statistics?.viewCount) || 0, published_at: v.snippet?.publishedAt ?? null }));
+  }
+
+  /** Posting rhythm (uploads a week, streak) and the weekday your videos do best on. */
+  async plannerStats(demo = false) {
+    let videos: { published_at: string | null; views: number }[];
+    let source: "analytics" | "uploads" | "sample";
+    if (!demo && this.live) { videos = (await this.analytics.channelVideos(365)).videos; source = "analytics"; }
+    else if (!demo && !this.isDemo() && this.settings.my_channel) { videos = await this.myUploads(50); source = "uploads"; }
+    else { videos = demoChannelVideos(); source = "sample"; }
+    return { ...rhythm(videos.map((v) => v.published_at)), weekday: weekdayStats(videos), source };
+  }
+
+  listGoals(): Goal[] { return this.store.getDoc<Goal[]>("goals", []); }
+  addGoal(metric: GoalMetric, target: number, by: string | null): Goal[] {
+    if (!GOAL_LABEL[metric]) throw new UserError("Choose what the goal measures.");
+    if (!(target > 0)) throw new UserError("Enter a target above zero.");
+    const goal: Goal = { id: Date.now().toString(36), metric, target, by: by && /^\d{4}-\d{2}-\d{2}$/.test(by) ? by : null, created: Date.now() / 1000 };
+    const list = [...this.listGoals(), goal].slice(-12);
+    this.store.setDoc("goals", list);
+    return list;
+  }
+  deleteGoal(id: string): Goal[] {
+    const list = this.listGoals().filter((g) => g.id !== id);
+    this.store.setDoc("goals", list);
+    return list;
+  }
+
+  /** Goals with progress and an estimated date at your current pace. */
+  async goalsProgress(demo = false) {
+    const goals = this.listGoals();
+    if (!goals.length) return { goals: [], demo: demo || !this.live };
+    const sample = demo || !this.live;
+    const g = sample ? demoGrowth().input : (await this.cachedGrowth()).input;
+    const stats = await this.plannerStats(sample);
+    const current: Current = { ...g, uploadsPerWeek: stats.per_week };
+    return { goals: goals.map((x) => goalProgress(x, current)), demo: sample };
+  }
+
+  private async cachedGrowth() {
+    const hit = this.store.cacheGet<Awaited<ReturnType<Analytics["growth"]>>>("growth", 6 * 3600 * 1000);
+    if (hit) return hit;
+    const g = await this.analytics.growth();
+    this.store.cacheSet("growth", g);
+    return g;
+  }
+
+  /** Last week at a glance: views, watch time, subscribers, best video, watchlist moves, uploads and what's planned next. */
+  async weeklySummary(demo = false): Promise<WeeklySummary> {
+    const sample = demo || !this.live;
+    const ov = sample ? demoOverview(7) : await this.analytics.overview(7);
+    const t = ov.totals, p = ov.previous;
+    const since = Date.now() / 1000 - 7 * 86400;
+    const watchlist = this.store.listTracked().map((tr) => {
+      const recent = tr.history.filter((h) => h.t >= since), before = tr.history.filter((h) => h.t < since);
+      const to = recent[recent.length - 1]?.score, from = before[before.length - 1]?.score ?? recent[0]?.score;
+      return to != null && from != null && to !== from ? { keyword: tr.keyword, from, to } : null;
+    }).filter((x): x is { keyword: string; from: number; to: number } => Boolean(x)).sort((a, b) => Math.abs(b.to - b.from) - Math.abs(a.to - a.from)).slice(0, 5);
+    const ideas = this.store.listIdeas();
+    const today = new Date().toISOString().slice(0, 10), week = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    const best = [...(ov.videos ?? [])].sort((a: any, b: any) => b.views - a.views)[0];
+    return {
+      start: ov.start, end: ov.end, views: t.views ?? 0, views_change: p.views ? Math.round(((t.views - p.views) / p.views) * 100) : null,
+      watch_hours: Math.round(((t.estimatedMinutesWatched ?? 0) / 60) * 10) / 10, subs: (t.subscribersGained ?? 0) - (t.subscribersLost ?? 0),
+      best: best ? { title: best.title, views: best.views, video: best.video } : null, watchlist,
+      uploaded: ideas.filter((i) => i.status === "uploaded" && i.updated >= since).map((i) => i.title),
+      planned: ideas.filter((i) => i.planned_for && i.planned_for >= today && i.planned_for <= week && i.status !== "uploaded")
+        .sort((a, b) => a.planned_for!.localeCompare(b.planned_for!)).map((i) => ({ title: i.title, planned_for: i.planned_for! })),
+      demo: sample,
+    };
+  }
+
+  /** The weekly summary if one is due (Monday or later in a week it hasn't been sent). For the desktop app's notification. */
+  async summaryIfDue(now = new Date()): Promise<WeeklySummary | null> {
+    const s = this.settings;
+    if (!s.weekly_summary || !this.live || s.last_summary_week === weekKey(now)) return null;
+    const summary = await this.weeklySummary();
+    this.store.updateSettings({ last_summary_week: weekKey(now) });
+    return summary;
+  }
+
+  /** New uploads taking off (each reported once). Uses about 2 quota units, skipping the cache. */
+  async earlyHitCheck(now = Date.now()): Promise<EarlyHit[]> {
+    if (!this.settings.early_alerts || this.isDemo() || !this.settings.my_channel) return [];
+    const alerted = new Set(this.store.getDoc<string[]>("alerted", []));
+    const hits = earlyHits(await this.myUploads(20, true), now, alerted);
+    if (hits.length) this.store.setDoc("alerted", [...alerted, ...hits.map((h) => h.video)].slice(-200));
+    return hits;
   }
 
   // -------------------------------------------------------------- competitors
@@ -602,7 +699,7 @@ export class Engine {
   }
   deleteIdea(id: number) { this.store.deleteIdea(id); return { ok: true }; }
   ideasCsv() {
-    return { filename: "nicheradar-ideas.csv", text: csv(this.store.listIdeas() as any, ["title", "keyword", "score", "verdict", "format", "status", "notes"]) };
+    return { filename: "nicheradar-ideas.csv", text: csv(this.store.listIdeas() as any, ["title", "keyword", "score", "verdict", "format", "status", "planned_for", "notes"]) };
   }
 }
 
@@ -610,6 +707,7 @@ export class Engine {
 export const ENGINE_METHODS = [
   "status", "getSettings", "saveSettings", "forgetSecret", "testYouTube", "clearCache", "suggest", "analyze", "discover", "outliers",
   "categories", "trending", "reddit", "viewerQuestions", "dayEvents", "risingWiki", "alreadyMade",
+  "plannerStats", "listGoals", "addGoal", "deleteGoal", "goalsProgress", "weeklySummary",
   "listCompetitors", "addCompetitor", "removeCompetitor", "competitorFeed", "findCollaborators", "connectChannel", "forgetChannel", "aiAngles", "aiMetadata", "aiPrompt", "aiDraftPrompt", "aiScriptPrompt", "aiTranslatePrompt", "aiFactCheckPrompt", "optimizeCheck", "analyticsStatus",
   "analyticsOverview", "analyticsRetention", "analyticsSeries", "analyticsOpenings", "analyticsGrowth", "analyticsSearchTerms", "analyticsAudience", "analyticsCatalog",
   "listSavedOpenings", "saveOpening", "updateSavedOpening", "deleteSavedOpening", "analyticsDisconnect", "listScans", "getScan", "deleteScan", "scanCsv", "listIdeas",
