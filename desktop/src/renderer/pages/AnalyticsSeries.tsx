@@ -1,11 +1,12 @@
 /** Analytics sections built from your whole catalog: series, ideas across formats, and openings. */
 
 import { useEffect, useState } from "react";
-import type { OpeningsReport, Series, SeriesReport, SeriesVerdict } from "../../core/series";
+import type { LengthReport, SavedOpening, SubscriberDriver } from "../../core/growth";
+import type { Opening, OpeningsReport, Series, SeriesReport, SeriesVerdict } from "../../core/series";
 import { call } from "../api";
 import { Button, Card, DetailPanel, Facts, Status, Tag, type Tone } from "../components/kit";
 import { analyzeLink, Empty, Loading, Reasons, Thumb, useApp } from "../components/ui";
-import { fmt, fmtDur } from "../format";
+import { ago, fmt, fmtDur } from "../format";
 
 const VERDICT: Record<SeriesVerdict, [Tone, string, string]> = {
   more: ["ok", "Make more", "Beats your typical video and holds viewers. Make the next one."],
@@ -116,9 +117,15 @@ function FormatIdeas({ data }: { data: SeriesReport }) {
 }
 
 export function OpeningsSection({ demo }: { demo: boolean }) {
-  const { fail } = useApp();
+  const { fail, toast } = useApp();
   const [data, setData] = useState<OpeningsReport | null>(null);
   const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState<SavedOpening[]>([]);
+  useEffect(() => { call("listSavedOpenings").then(setSaved).catch(() => undefined); }, []);
+  const save = async (o: Opening) => {
+    try { setSaved(await call("saveOpening", { video: o.video, title: o.title, hold: o.hold, at_s: o.at_s })); toast("Opening saved", "ok", "Add the first line you said in the library below."); }
+    catch (e) { fail(e, "The opening wasn’t saved"); }
+  };
   const load = async () => {
     setBusy(true);
     try { setData(await call("analyticsOpenings", demo)); } catch (e) { fail(e, "Openings couldn’t be compared"); } finally { setBusy(false); }
@@ -140,6 +147,7 @@ export function OpeningsSection({ demo }: { demo: boolean }) {
                   <div className="row nowrap mt-sm">
                     <div className="meter grow"><i className={tone(o.hold)} style={{ width: `${Math.min(100, o.hold * 100)}%` }} /></div>
                     <span className="tabular small nowrap">{Math.round(o.hold * 100)}% at {o.at_s} s</span>
+                    <Button size="sm" variant="ghost" iconOnly icon={saved.some((x) => x.video === o.video) ? "check" : "bookmark"} label="Save to opening library" onClick={() => save(o)} />
                   </div>
                 </div>
               </div>
@@ -150,6 +158,81 @@ export function OpeningsSection({ demo }: { demo: boolean }) {
       ) : (
         <p className="secondary" style={{ margin: 0 }}>No retention data yet. YouTube needs a few days of views on a video before it reports retention.</p>
       )}
+      <OpeningLibrary saved={saved} onChange={setSaved} />
     </Card>
+  );
+}
+
+/** Openings you saved, with the first line you said, to reuse as templates (the Shorts script helper uses them too). */
+function OpeningLibrary({ saved, onChange }: { saved: SavedOpening[]; onChange(list: SavedOpening[]): void }) {
+  const { fail } = useApp();
+  if (!saved.length) return <p className="secondary" style={{ margin: "var(--s4) 0 0" }}>Save strong openings with the bookmark button to build a library of first lines that work for you.</p>;
+  const update = async (id: string, line: string) => { try { onChange(await call("updateSavedOpening", id, line)); } catch (e) { fail(e, "The line wasn’t saved"); } };
+  const remove = async (id: string) => { try { onChange(await call("deleteSavedOpening", id)); } catch (e) { fail(e, "The opening wasn’t removed"); } };
+  return (
+    <div className="mt">
+      <span className="section-label">Opening library</span>
+      <div className="stack tight">
+        {saved.map((o) => (
+          <div key={o.id} className="row nowrap" style={{ alignItems: "flex-start" }}>
+            <div className="grow" style={{ minWidth: 0 }}>
+              <div className="title" style={{ fontWeight: 600 }}>{o.title}</div>
+              <div className="secondary">{Math.round(o.hold * 100)}% still watching at {o.at_s} s · saved {ago(o.saved, true)}</div>
+              <input className="input mt-sm" style={{ width: "100%" }} defaultValue={o.line} placeholder="The first line you said, word for word"
+                aria-label={`First line of ${o.title}`} onBlur={(e) => { if (e.target.value !== o.line) update(o.id, e.target.value); }} />
+            </div>
+            <Button size="sm" variant="ghost" iconOnly icon="trash" label="Remove from library" onClick={() => remove(o.id)} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Which lengths work best for you, and which videos turn viewers into subscribers. */
+export function CatalogSection({ demo }: { demo: boolean }) {
+  const [data, setData] = useState<{ short: LengthReport; long: LengthReport; drivers: SubscriberDriver[]; channel_per_k: number } | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => { call("analyticsCatalog", demo).then(setData).catch((e) => setError(e.message)); }, [demo]);
+  if (error) return <Card className="mt" title="Length and subscribers"><p className="t2" style={{ margin: 0 }}>{error}</p></Card>;
+  if (!data) return <div className="mt"><Loading title="Comparing your videos" rows={3} /></div>;
+  const lengths = [data.short, data.long].filter((r) => r.buckets.some((b) => b.count));
+  return (
+    <div className="grid g-report mt">
+      <Card title="Best length" sub="Your videos from the last 12 months, grouped by length. Median views per video.">
+        {lengths.length ? lengths.map((r) => {
+          const max = Math.max(1, ...r.buckets.map((b) => b.median_views));
+          return (
+            <div key={r.format} className="mb">
+              <span className="section-label" style={{ marginTop: 0 }}>{r.format === "short" ? "Shorts" : "Long videos"}</span>
+              <div className="stack tight">
+                {r.buckets.filter((b) => b.count).map((b) => (
+                  <div key={b.label}>
+                    <div className="row between small mb-sm"><span className={b.best ? "" : "t2"} style={b.best ? { fontWeight: 600 } : undefined}>{b.label}{b.best && <span style={{ marginLeft: 6 }}><Tag tone="ok">Best</Tag></span>}</span>
+                      <span className="muted tabular">{b.count} {b.count === 1 ? "video" : "videos"} · {fmt(b.median_views)} views · {Math.round(b.avg_viewed)}% watched</span></div>
+                    <div className="meter"><i className={b.best ? "ok" : undefined} style={{ width: `${(b.median_views / max) * 100}%` }} /></div>
+                  </div>
+                ))}
+              </div>
+              {r.advice && <p className="secondary" style={{ margin: "8px 0 0" }}>{r.advice}</p>}
+            </div>
+          );
+        }) : <p className="secondary" style={{ margin: 0 }}>No videos with views in the last 12 months yet.</p>}
+      </Card>
+      <Card title="What brings subscribers" sub={`Subscribers gained per 1,000 views. Your channel average is ${data.channel_per_k}.`}>
+        {data.drivers.length ? (
+          <div className="stack tight">
+            {data.drivers.map((d) => (
+              <div key={d.video} className="vid-cell">
+                <Thumb v={{ thumbnail: d.thumbnail, title: d.title, channel_title: d.title }} />
+                <div style={{ minWidth: 0 }}><div className="title">{d.title}</div>
+                  <div className="secondary"><b style={{ color: "var(--text)" }}>{d.per_k}</b> per 1,000 views · +{fmt(d.subs)} from {fmt(d.views)} views</div></div>
+              </div>
+            ))}
+            <p className="secondary" style={{ margin: "4px 0 0" }}>These topics and formats convert viewers best. Make more like them, and copy what their endings do.</p>
+          </div>
+        ) : <p className="secondary" style={{ margin: 0 }}>No subscribers gained from your videos in the last 12 months yet.</p>}
+      </Card>
+    </div>
   );
 }

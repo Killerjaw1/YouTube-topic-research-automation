@@ -61,6 +61,18 @@ export class Store {
   private writeJson(name: string, value: unknown) { this.persist.write(name, JSON.stringify(value)); }
   private saveIndex() { this.writeJson("index.json", this.index); }
 
+  // ------------------------------------------------------------ small documents
+  /** A small JSON document by name (goals, competitors, templates...), or `fallback` if it doesn't exist. */
+  getDoc<T>(name: string, fallback: T): T {
+    if (!/^[a-z0-9_-]+$/.test(name)) throw new Error("bad document name");
+    return this.readJson<T>(`docs/${name}.json`) ?? fallback;
+  }
+
+  setDoc(name: string, value: unknown) {
+    if (!/^[a-z0-9_-]+$/.test(name)) throw new Error("bad document name");
+    this.writeJson(`docs/${name}.json`, value);
+  }
+
   // ------------------------------------------------------------- settings
   getSettings(): Settings {
     if (!this.settingsCache) this.settingsCache = { ...DEFAULT_SETTINGS, ...(this.readJson<Partial<Settings>>("settings.json") ?? {}) };

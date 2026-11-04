@@ -7,6 +7,7 @@
  * Scopes are read-only: yt-analytics.readonly and youtube.readonly.
  */
 
+import { type AudienceReport, type GrowthInput, type GrowthReport, partnerProgress, type SearchTermsReport } from "./growth";
 import { type ChannelVideo, groupSeries, holdAt, type Opening, openingAt, openingInsights, type OpeningsReport, type SeriesReport } from "./series";
 import type { Store } from "./store";
 import { UserError } from "./types";
@@ -248,6 +249,71 @@ export class Analytics {
     return { openings: openings.sort((a, b) => b.hold - a.hold), median_hold: median(openings.map((o) => o.hold)), insights: openingInsights(openings), demo: false };
   }
 
+  /** Partner Program progress: subscribers, Shorts views (90 days), long-form watch hours (12 months), uploads. */
+  async growth(): Promise<GrowthReport> {
+    const end = addDays(new Date(), -1);
+    const day = (n: number) => addDays(end, -(n - 1));
+    const byType = async (days: number) => {
+      try {
+        const rows = await this.report(day(days), end, "views,estimatedMinutesWatched", { dimensions: "creatorContentType" });
+        const shorts = rows.filter((r) => r.creatorContentType === "SHORTS");
+        const other = rows.filter((r) => r.creatorContentType !== "SHORTS");
+        return { shortsViews: shorts.reduce((a, r) => a + (r.views ?? 0), 0), longMinutes: other.reduce((a, r) => a + (r.estimatedMinutesWatched ?? 0), 0) };
+      } catch { // Older channels or API versions without content types: split by video length instead.
+        const { videos } = await this.channelVideos(days);
+        const views = await this.report(day(days), end, "estimatedMinutesWatched");
+        const shortViews = videos.filter((v) => v.duration_s > 0 && v.duration_s <= 180).reduce((a, v) => a + v.views, 0);
+        const longShare = videos.length ? videos.filter((v) => v.duration_s > 180).reduce((a, v) => a + v.views, 0) / Math.max(1, videos.reduce((a, v) => a + v.views, 0)) : 1;
+        return { shortsViews: shortViews, longMinutes: (views[0]?.estimatedMinutesWatched ?? 0) * longShare };
+      }
+    };
+    const [info, recent, w28, w90, w365, uploads] = await Promise.all([
+      this.channelInfo(),
+      this.report(day(28), end, "subscribersGained,subscribersLost").then((r) => r[0] ?? {}),
+      byType(28), byType(90), byType(365), this.channelVideos(90),
+    ]);
+    const since = Date.now() - 90 * 86400000;
+    const input: GrowthInput = {
+      subs: info.subs, subsPerDay: ((recent.subscribersGained ?? 0) - (recent.subscribersLost ?? 0)) / 28,
+      shortsViews90: w90.shortsViews, shortsViewsPerDay: w28.shortsViews / 28,
+      watchHours365: w365.longMinutes / 60, watchHoursPerDay: w28.longMinutes / 60 / 28,
+      uploads90: uploads.videos.filter((v) => v.published_at && Date.parse(v.published_at) >= since).length,
+    };
+    return { input, tiers: partnerProgress(input), demo: false, checked: isoDate(end) };
+  }
+
+  /** The YouTube searches that brought viewers to your videos. */
+  async searchTerms(days = 28): Promise<SearchTermsReport> {
+    const end = addDays(new Date(), -1), start = addDays(end, -(days - 1));
+    const rows = await this.report(start, end, "views", { dimensions: "insightTrafficSourceDetail", filters: "insightTrafficSourceType==YT_SEARCH", sort: "-views", maxResults: 25 });
+    const terms = rows.map((r) => ({ term: String(r.insightTrafficSourceDetail ?? "").trim(), views: r.views ?? 0 })).filter((t) => t.term);
+    return { terms, total: terms.reduce((a, t) => a + t.views, 0), demo: false };
+  }
+
+  /** Where viewers are, how old they are and what they watch on. Each part is optional: small channels may not have it. */
+  async audience(days = 28): Promise<AudienceReport> {
+    const end = addDays(new Date(), -1), start = addDays(end, -(days - 1));
+    const safe = async <T,>(f: () => Promise<T>, fallback: T) => { try { return await f(); } catch (e) { if (e instanceof NotConnected) throw e; return fallback; } };
+    const share = (rows: Record<string, any>[], key: string, metric: string) => {
+      const total = rows.reduce((a, r) => a + (r[metric] ?? 0), 0) || 1;
+      return rows.map((r) => ({ key: String(r[key]), share: round1((r[metric] ?? 0) / total * 100) }));
+    };
+    const [countries, ages, gender, devices] = await Promise.all([
+      safe(() => this.report(start, end, "views", { dimensions: "country", sort: "-views", maxResults: 10 }), []),
+      safe(() => this.report(start, end, "viewerPercentage", { dimensions: "ageGroup", sort: "ageGroup" }), []),
+      safe(() => this.report(start, end, "viewerPercentage", { dimensions: "gender" }), []),
+      safe(() => this.report(start, end, "views", { dimensions: "deviceType", sort: "-views" }), []),
+    ]);
+    const totalViews = countries.reduce((a, r) => a + (r.views ?? 0), 0) || 1;
+    return {
+      countries: countries.map((r) => ({ code: String(r.country), views: r.views ?? 0, share: round1(((r.views ?? 0) / totalViews) * 100) })),
+      ages: share(ages, "ageGroup", "viewerPercentage").map((x) => ({ age: x.key.replace("age", "").replace(/-$/, "+").replace("-", "–"), share: x.share })),
+      gender: share(gender, "gender", "viewerPercentage").map((x) => ({ gender: x.key, share: x.share })),
+      devices: share(devices, "deviceType", "views").map((x) => ({ device: x.key, share: x.share })),
+      demo: false,
+    };
+  }
+
   async retention(videoId: string) {
     const end = addDays(new Date(), -1);
     const rows = await this.report(addDays(end, -365), end, "audienceWatchRatio,relativeRetentionPerformance", {
@@ -361,6 +427,29 @@ export function demoOverview(days = 28): Overview {
     daily, videos, traffic, ctr: { impressions: views * 14, ctr: 0.051 }, channel: { title: "Demo Kitchen", subs: 1240, thumb: "" }, demo: true, insights: [] };
   ov.insights = insights(ov);
   return ov;
+}
+
+const round1 = (v: number) => Math.round(v * 10) / 10;
+
+export function demoGrowth(): GrowthReport {
+  const input: GrowthInput = { subs: 742, subsPerDay: 5.6, shortsViews90: 1_850_000, shortsViewsPerDay: 45_000, watchHours365: 610, watchHoursPerDay: 2.1, uploads90: 24 };
+  return { input, tiers: partnerProgress(input), demo: true, checked: isoDate(addDays(new Date(), -1)) };
+}
+
+export function demoSearchTerms(): SearchTermsReport {
+  const terms = [["air fryer chicken", 412], ["why are my fries soggy", 288], ["air fryer settings", 201], ["meal prep for one", 164], ["rice cooker tricks", 120],
+    ["how long does rice last in the fridge", 96], ["high protein lunch cheap", 71], ["freezer burn", 58], ["air fryer vs oven", 44]].map(([term, views]) => ({ term: String(term), views: Number(views) }));
+  return { terms, total: terms.reduce((a, t) => a + t.views, 0), demo: true };
+}
+
+export function demoAudience(): AudienceReport {
+  return {
+    countries: [["US", 41], ["GB", 9], ["IN", 8], ["CA", 6], ["AU", 4], ["DE", 3], ["PH", 3], ["BR", 2]].map(([code, share]) => ({ code: String(code), views: Number(share) * 120, share: Number(share) })),
+    ages: [["13–17", 9], ["18–24", 31], ["25–34", 33], ["35–44", 15], ["45–54", 7], ["55–64", 3], ["65+", 2]].map(([age, share]) => ({ age: String(age), share: Number(share) })),
+    gender: [{ gender: "male", share: 58 }, { gender: "female", share: 41 }, { gender: "user_specified", share: 1 }],
+    devices: [{ device: "MOBILE", share: 81 }, { device: "DESKTOP", share: 11 }, { device: "TV", share: 6 }, { device: "TABLET", share: 2 }],
+    demo: true,
+  };
 }
 
 /** A sample catalog with clear series, for the browser preview and for channels without Analytics. */

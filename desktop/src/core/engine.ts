@@ -3,7 +3,8 @@
  * (real YouTube data) and, for `npm run web`, directly in the browser on demo data.
  */
 
-import { Analytics, demoOpenings, demoOverview, demoRetention, demoSeries } from "./analytics";
+import { Analytics, demoAudience, demoChannelVideos, demoGrowth, demoOpenings, demoOverview, demoRetention, demoSearchTerms, demoSeries } from "./analytics";
+import { lengthReport, type SavedOpening, subscriberDrivers } from "./growth";
 import { DemoYouTube, demoReddit, demoSuggestions } from "./demo";
 import { checkDraft, playbook, type Draft } from "./optimize";
 import { anglesRequest, claudeAiPrompt, metadataRequest } from "./prompts";
@@ -398,6 +399,45 @@ export class Engine {
     return this.analytics.openings(12);
   }
 
+  private get live() { return this.opts.desktop && this.analytics.connected(); }
+
+  /** Partner Program progress with time estimates. */
+  async analyticsGrowth(demo = false) { return demo || !this.live ? demoGrowth() : this.analytics.growth(); }
+
+  /** The YouTube searches that brought viewers to your videos. */
+  async analyticsSearchTerms(days = 28, demo = false) {
+    days = Math.max(7, Math.min(days, 365));
+    return demo || !this.live ? demoSearchTerms() : this.analytics.searchTerms(days);
+  }
+
+  async analyticsAudience(days = 28, demo = false) {
+    days = Math.max(7, Math.min(days, 365));
+    return demo || !this.live ? demoAudience() : this.analytics.audience(days);
+  }
+
+  /** Best lengths for Shorts and long videos, and the videos that bring subscribers, over the last 12 months. */
+  async analyticsCatalog(demo = false) {
+    const videos = demo || !this.live ? demoChannelVideos() : (await this.analytics.channelVideos(365)).videos;
+    return { short: lengthReport(videos, "short"), long: lengthReport(videos, "long"), ...subscriberDrivers(videos), demo: demo || !this.live };
+  }
+
+  // Opening library: openings you want to reuse, with the first line you said.
+  listSavedOpenings(): SavedOpening[] { return this.store.getDoc<SavedOpening[]>("openings", []); }
+  saveOpening(o: Omit<SavedOpening, "id" | "saved" | "line"> & { line?: string }): SavedOpening[] {
+    const list = this.listSavedOpenings().filter((x) => x.video !== o.video);
+    list.unshift({ ...o, line: (o.line ?? "").slice(0, 300), id: `${o.video}-${Date.now().toString(36)}`, saved: Date.now() / 1000 });
+    this.store.setDoc("openings", list.slice(0, 100));
+    return this.listSavedOpenings();
+  }
+  updateSavedOpening(id: string, line: string): SavedOpening[] {
+    this.store.setDoc("openings", this.listSavedOpenings().map((x) => (x.id === id ? { ...x, line: line.slice(0, 300) } : x)));
+    return this.listSavedOpenings();
+  }
+  deleteSavedOpening(id: string): SavedOpening[] {
+    this.store.setDoc("openings", this.listSavedOpenings().filter((x) => x.id !== id));
+    return this.listSavedOpenings();
+  }
+
   async analyticsDisconnect() { await this.analytics.disconnect(); return { ok: true }; }
 
   // -------------------------------------------------------------------- scans
@@ -436,7 +476,8 @@ export class Engine {
 export const ENGINE_METHODS = [
   "status", "getSettings", "saveSettings", "forgetSecret", "testYouTube", "clearCache", "suggest", "analyze", "discover", "outliers",
   "categories", "trending", "reddit", "connectChannel", "forgetChannel", "aiAngles", "aiMetadata", "aiPrompt", "aiDraftPrompt", "optimizeCheck", "analyticsStatus",
-  "analyticsOverview", "analyticsRetention", "analyticsSeries", "analyticsOpenings", "analyticsDisconnect", "listScans", "getScan", "deleteScan", "scanCsv", "listIdeas",
+  "analyticsOverview", "analyticsRetention", "analyticsSeries", "analyticsOpenings", "analyticsGrowth", "analyticsSearchTerms", "analyticsAudience", "analyticsCatalog",
+  "listSavedOpenings", "saveOpening", "updateSavedOpening", "deleteSavedOpening", "analyticsDisconnect", "listScans", "getScan", "deleteScan", "scanCsv", "listIdeas",
   "addIdea", "updateIdea", "deleteIdea", "ideasCsv", "listTracked", "track", "untrack", "refreshTracked",
 ] as const;
 export type EngineMethod = (typeof ENGINE_METHODS)[number];

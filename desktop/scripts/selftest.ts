@@ -18,6 +18,7 @@ import { hash, quartiles, quotaDay } from "../src/core/util";
 import { parseDuration } from "../src/core/youtube";
 import { groupSeries, holdAt, openingAt, subjectTerms } from "../src/core/series";
 import { postsFromFeed, redditTop } from "../src/core/sources";
+import { editNotes, etaRolling, lengthReport, partnerProgress, subscriberDrivers } from "../src/core/growth";
 import { FilePersist } from "../src/main/persist";
 
 let passed = 0, failed = 0;
@@ -348,6 +349,41 @@ async function main() {
     const o = await engine.analyticsOpenings(true);
     assert.ok(o.openings.length >= 10 && o.openings[0].hold >= o.openings[o.openings.length - 1].hold, "sorted best first");
     assert.ok(o.insights.some((i) => i.text.startsWith("Your strongest openings")));
+  });
+  await test("Partner Program: requirements, either path, time estimates", () => {
+    assert.equal(etaRolling(1_850_000, 3_000_000, 45_000, 90), 48, "rolling 90-day total reaches 3M in about 48 days");
+    assert.equal(etaRolling(1_850_000, 10_000_000, 45_000, 90), null, "4.05M a quarter never reaches 10M");
+    assert.equal(etaRolling(5, 3, 1, 90), 0);
+    const [early, full] = partnerProgress({ subs: 742, subsPerDay: 5.6, shortsViews90: 1_850_000, shortsViewsPerDay: 45_000, watchHours365: 610, watchHoursPerDay: 2.1, uploads90: 24 });
+    assert.equal(early.requirements.find((r) => r.id === "subs")!.done, true);
+    assert.equal(early.path, "shorts");
+    assert.equal(early.eta_days, 48, "early access arrives through Shorts views");
+    assert.equal(full.requirements.find((r) => r.id === "subs")!.eta_days, 47, "258 more subscribers at 5.6 a day");
+    assert.equal(full.eta_days, null, "not reachable at this pace");
+    const done = partnerProgress({ subs: 1200, subsPerDay: 1, shortsViews90: 11_000_000, shortsViewsPerDay: 1, watchHours365: 10, watchHoursPerDay: 0, uploads90: 5 });
+    assert.ok(done.every((t) => t.done && t.eta_days === 0));
+  });
+  await test("Best length, subscriber drivers and edit notes", () => {
+    const v = (dur: number, views: number, subs = 1) => ({ video: `${dur}-${views}`, title: "t", thumbnail: "", views, averageViewPercentage: 70, averageViewDuration: 30, subscribersGained: subs, duration_s: dur, published_at: null });
+    const lr = lengthReport([v(15, 900), v(18, 1100), v(40, 9000), v(44, 12000), v(55, 3000), v(58, 2000), v(600, 500)], "short");
+    assert.equal(lr.buckets.find((b) => b.best)?.label, "35–49 s");
+    assert.ok(lr.advice?.startsWith("Your Shorts of 35–49 s do best"));
+    const sd = subscriberDrivers([v(40, 10000, 10), v(40, 2000, 30), v(40, 50, 5)]);
+    assert.equal(sd.drivers[0].per_k, 15, "2,000 views and 30 subscribers is 15 per 1,000");
+    assert.ok(!sd.drivers.some((d) => d.views === 50), "too few views to count");
+    const pts = Array.from({ length: 101 }, (_, i) => ({ elapsedVideoTimeRatio: i / 100, audienceWatchRatio: i < 40 ? 0.9 - i * 0.002 : i < 44 ? 0.82 - (i - 40) * 0.05 : 0.6 }));
+    const notes = editNotes(pts, 100);
+    assert.ok(notes.some((n) => n.kind === "cut" && n.text.startsWith("0:4")), "the drop around 40 s is flagged");
+  });
+  await test("Analytics extras in sample mode, and the opening library", async () => {
+    const [g, st, au, cat] = [await engine.analyticsGrowth(true), await engine.analyticsSearchTerms(28, true), await engine.analyticsAudience(28, true), await engine.analyticsCatalog(true)];
+    assert.ok(g.demo && g.tiers.length === 2 && st.terms.length > 3 && au.countries[0].code === "US" && cat.short.buckets.length === 5);
+    engine.saveOpening({ video: "v1", title: "Why rice goes hard", hold: 0.9, at_s: 3 });
+    engine.saveOpening({ video: "v1", title: "Why rice goes hard", hold: 0.91, at_s: 3 });
+    const list = engine.listSavedOpenings();
+    assert.equal(list.length, 1, "saving the same video again replaces it");
+    assert.equal(engine.updateSavedOpening(list[0].id, "Your rice isn’t stale. It’s crystallising.")[0].line, "Your rice isn’t stale. It’s crystallising.");
+    assert.equal(engine.deleteSavedOpening(list[0].id).length, 0);
   });
   await test("Retention curve: weak hook and steep drop detected", () => {
     const pts = Array.from({ length: 101 }, (_, i) => ({ elapsedVideoTimeRatio: i / 100, audienceWatchRatio: i < 10 ? 1 - i * 0.06 : i === 50 ? 0.2 : 0.35, relativeRetentionPerformance: 0.3 }));

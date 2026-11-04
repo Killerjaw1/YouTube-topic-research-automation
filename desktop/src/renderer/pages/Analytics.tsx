@@ -5,8 +5,10 @@ import { BarChart, RetentionChart } from "../components/charts";
 import { Banner, Button, Card, DetailPanel, Facts, Segmented } from "../components/kit";
 import { Empty, go, Loading, PageHead, Reasons, type Route, Thumb, useApp } from "../components/ui";
 import { fmt, fmtDur } from "../format";
+import { editNotes } from "../../core/growth";
 import { seedFrom } from "../../core/series";
-import { OpeningsSection, SeriesSection } from "./AnalyticsSeries";
+import { CatalogSection, OpeningsSection, SeriesSection } from "./AnalyticsSeries";
+import { AudienceTab, GrowthTab } from "./AnalyticsGrowth";
 
 export function useConnectAnalytics() {
   const { toast, fail, refresh } = useApp();
@@ -21,27 +23,54 @@ export function useConnectAnalytics() {
   };
 }
 
+type Tab = "overview" | "content" | "audience" | "growth";
+const TABS: [Tab, string][] = [["overview", "Overview"], ["content", "Content"], ["audience", "Audience"], ["growth", "Growth"]];
+export const analyticsLink = (tab: Tab, days?: number) => `#/analytics?tab=${tab}${days ? `&days=${days}` : ""}`;
+
 export function AnalyticsPage({ route }: { route: Route }) {
-  const { fail, panel } = useApp();
+  const { fail } = useApp();
   const connect = useConnectAnalytics();
+  const raw = route.params.get("tab");
+  const tab: Tab = raw === "content" || raw === "audience" || raw === "growth" ? raw : "overview";
   const days = Number(route.params.get("days")) || 28;
-  const [st, setSt] = useState<{ connected: boolean; has_client: boolean; desktop: boolean } | null>(null);
+  const [st, setSt] = useState<{ connected: boolean; has_client: boolean; desktop: boolean; channel: { title: string } | null } | null>(null);
+  const [nonce, setNonce] = useState(0);
+  useEffect(() => { call("analyticsStatus").then(setSt).catch(fail); }, [nonce]); // eslint-disable-line
+  const demo = !st || !(st.desktop && st.connected);
+  const periodTab = tab === "overview" || tab === "audience";
+
+  return (
+    <>
+      <PageHead title="Analytics" desc={st && !demo ? `${st.channel?.title ?? "Your channel"}, from YouTube Analytics. YouTube’s figures are usually a day or two behind.`
+        : "How your channel is doing, from YouTube Analytics. YouTube’s figures are usually a day or two behind."}>
+        {periodTab && <Segmented label="Period" value={days} onChange={(d) => go(analyticsLink(tab, d))} options={[[7, "7 days"], [28, "28 days"], [90, "90 days"], [365, "12 months"]]} />}
+      </PageHead>
+      {st && demo && (
+        <Banner tone="warn" title="Showing sample data"
+          actions={st.desktop ? (st.has_client ? <Button size="sm" variant="primary" onClick={() => connect(() => setNonce((n) => n + 1))}>Connect YouTube Analytics</Button> : <Button size="sm" href="#/settings?s=analytics">Set up…</Button>) : undefined}>
+          Connect YouTube Analytics to see your own retention, watch time and traffic sources.
+        </Banner>
+      )}
+      <div className="tabs" role="tablist" aria-label="Analytics sections">
+        {TABS.map(([t, label]) => <button key={t} role="tab" aria-selected={tab === t} onClick={() => go(analyticsLink(t, periodTab && (t === "overview" || t === "audience") ? days : undefined))}>{label}</button>)}
+      </div>
+      {!st ? <Loading title="Loading channel analytics" rows={6} />
+        : tab === "content" ? <ContentTab demo={demo} />
+        : tab === "audience" ? <AudienceTab days={days} demo={demo} />
+        : tab === "growth" ? <GrowthTab demo={demo} />
+        : <OverviewTab days={days} demo={demo} key={`${days}-${nonce}`} />}
+    </>
+  );
+}
+
+function OverviewTab({ days, demo }: { days: number; demo: boolean }) {
+  const { panel } = useApp();
   const [ov, setOv] = useState<Overview | null>(null);
   const [error, setError] = useState("");
-  const load = () => {
-    setOv(null); setError("");
-    call("analyticsStatus").then(setSt).catch(fail);
-    call("analyticsOverview", days).then(setOv).catch((e) => setError(e.message));
-  };
-  useEffect(load, [days]); // eslint-disable-line
-
-  const head = (
-    <PageHead title="Analytics" desc={ov && !ov.demo ? `${ov.channel?.title ?? "Your channel"}, ${ov.start} to ${ov.end}. YouTube’s figures are usually a day or two behind.` : "How your channel is doing, from YouTube Analytics. YouTube’s figures are usually a day or two behind."}>
-      <Segmented label="Period" value={days} onChange={(d) => go(`#/analytics?days=${d}`)} options={[[7, "7 days"], [28, "28 days"], [90, "90 days"], [365, "12 months"]]} />
-    </PageHead>
-  );
-  if (error) return <>{head}<Empty icon="warn" title="Analytics couldn’t be loaded" actions={<><Button onClick={load}>Try again</Button><Button variant="primary" href="#/settings">Open settings</Button></>}>{error}</Empty></>;
-  if (!ov || !st) return <>{head}<Loading title="Loading channel analytics" rows={6} /></>;
+  const load = () => { setOv(null); setError(""); call("analyticsOverview", days, demo).then(setOv).catch((e) => setError(e.message)); };
+  useEffect(load, [days, demo]); // eslint-disable-line
+  if (error) return <Empty icon="warn" title="Analytics couldn’t be loaded" actions={<><Button onClick={load}>Try again</Button><Button variant="primary" href="#/settings?s=analytics">Open settings</Button></>}>{error}</Empty>;
+  if (!ov) return <Loading title="Loading channel analytics" rows={6} />;
 
   const t = ov.totals, p = ov.previous;
   const delta = (a?: number, b?: number) => {
@@ -55,13 +84,7 @@ export function AnalyticsPage({ route }: { route: Route }) {
 
   return (
     <>
-      {head}
-      {ov.demo && (
-        <Banner tone="warn" title="Showing sample data"
-          actions={st.desktop ? (st.has_client ? <Button size="sm" variant="primary" onClick={() => connect(load)}>Connect YouTube Analytics</Button> : <Button size="sm" href="#/settings">Set up…</Button>) : undefined}>
-          Connect YouTube Analytics to see your own retention, watch time and traffic sources.
-        </Banner>
-      )}
+      {!ov.demo && <p className="secondary" style={{ margin: "0 0 var(--s3)" }}>{ov.start} to {ov.end}</p>}
       <div className="kpis mb">
         <div className="kpi"><span className="label">Views</span><div className="value">{fmt(t.views)}</div><div className="secondary">{delta(t.views, p.views) ? <>{delta(t.views, p.views)} on the previous period</> : "No earlier period to compare"}</div></div>
         <div className="kpi"><span className="label">Watch time</span><div className="value">{fmt((t.estimatedMinutesWatched ?? 0) / 60)} h</div>
@@ -118,16 +141,19 @@ export function AnalyticsPage({ route }: { route: Route }) {
           </div>
         </Card>
       </div>
-      <SeriesSection demo={ov.demo} />
-      <OpeningsSection demo={ov.demo} />
     </>
   );
+}
+
+function ContentTab({ demo }: { demo: boolean }) {
+  return <><SeriesSection demo={demo} /><CatalogSection demo={demo} /><OpeningsSection demo={demo} /></>;
 }
 
 function RetentionPanel({ video, demo, onClose }: { video: any; demo: boolean; onClose(): void }) {
   const [data, setData] = useState<{ points: any[]; insights: any[] } | null>(null);
   const [error, setError] = useState("");
   useEffect(() => { setData(null); call("analyticsRetention", video.video, demo).then(setData).catch((e) => setError(e.message)); }, [video, demo]);
+  const notes = data ? editNotes(data.points, video.duration_s) : [];
   return (
     <DetailPanel title={video.title} sub="Audience retention" onClose={onClose}
       footer={<>
@@ -143,6 +169,10 @@ function RetentionPanel({ video, demo, onClose }: { video: any; demo: boolean; o
           <p className="secondary" style={{ margin: "8px 0 0" }}>Above 100% means viewers went back and watched that part again.</p>
         </div>
         <div><span className="section-label">What it shows</span><Reasons items={data.insights} /></div>
+        {notes.length > 0 && (
+          <div><span className="section-label">Edit notes for next time</span>
+            <Reasons items={notes.map((n) => ({ type: n.kind === "cut" ? "warn" as const : "good" as const, text: n.text }))} /></div>
+        )}
       </>}
     </DetailPanel>
   );
