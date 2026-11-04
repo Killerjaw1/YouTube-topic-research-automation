@@ -6,7 +6,7 @@ import { Icon } from "../components/Icon";
 import { ideaModal } from "../components/IdeaModal";
 import { Button, Card, ChipGroup, Dialog, Menu, Segmented, Tag } from "../components/kit";
 import {
-  analyzeLink, Checklist, CopyButton, DemoBanner, Empty, FormatBadge, go, Loading, PageHead, Reasons, type Route, SearchBox, useApp, Verdict,
+  analyzeLink, Checklist, CopyButton, DemoBanner, useCopyForClaude, Empty, FormatBadge, go, Loading, PageHead, Reasons, type Route, SearchBox, useApp, Verdict,
 } from "../components/ui";
 import { VideoTable } from "../components/VideoTable";
 import { ago, fmt, store, tone } from "../format";
@@ -153,12 +153,19 @@ function ReportView({ report: rep }: { report: Report }) {
       refresh();
     } catch (e) { fail(e); }
   };
+  const copyForClaude = useCopyForClaude();
+  const copyAngles = () => copyForClaude(() => call("aiPrompt", rep.scan_id!));
   const runAI = async () => {
     if (!status?.has_ai_key) {
       modal((close) => (
-        <Dialog title="Suggest angles with Claude" desc="Claude reads this report and proposes angles, metadata and a plan for keeping viewers watching."
-          footer={<><Button onClick={close}>Cancel</Button>{status?.desktop && <Button variant="primary" href="#/settings" onClick={close}>Add an API key…</Button>}</>}>
-          <p className="t2" style={{ margin: 0 }}>{status?.desktop ? "This needs an Anthropic API key. Requests are billed to your Anthropic account." : "This is available in the desktop app."}</p>
+        <Dialog title="Suggest angles with Claude" desc="Claude reads this report and proposes angles, upload metadata and a plan for keeping viewers watching."
+          footer={<>
+            <Button onClick={close}>Cancel</Button>
+            {status?.desktop && <Button href="#/settings" onClick={close}>Add an API key…</Button>}
+            <Button variant="primary" icon="copy" disabled={!rep.scan_id} onClick={() => { close(); copyAngles(); }}>Copy for Claude.ai</Button>
+          </>}>
+          <p className="t2" style={{ margin: 0 }}><b>With a Claude plan</b> (Pro, Max or Team): copy the request, then paste it into the Claude chat that opens. No API key needed.</p>
+          <p className="secondary" style={{ margin: 0 }}>With an Anthropic API key, the suggestions appear here in the report instead. The API is billed separately from Claude plans.</p>
         </Dialog>
       ));
       return;
@@ -199,6 +206,7 @@ function ReportView({ report: rep }: { report: Report }) {
             <Menu label="Export and more" items={[
               ...(rep.scan_id ? [{ label: "Export results as CSV…", icon: "download" as const, onSelect: exportCsv }] : []),
               { label: "Save report as PDF…", icon: "file", onSelect: exportReport },
+              ...(rep.scan_id ? [{ label: "Copy for Claude.ai", icon: "copy" as const, onSelect: copyAngles }] : []),
               "sep",
               { label: "Open search on YouTube", icon: "external", onSelect: () => openExternal(`https://www.youtube.com/results?search_query=${encodeURIComponent(rep.keyword)}`) },
             ]} />

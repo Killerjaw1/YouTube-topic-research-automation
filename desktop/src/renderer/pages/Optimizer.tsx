@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { AIMetadata, DraftCheck, Playbook, RetentionPlan } from "../../core/types";
 import { call } from "../api";
-import { Button, Card, StateCard, Tag } from "../components/kit";
-import { Empty, Loading, PageHead, Reasons, type Route, ScorePill, useApp } from "../components/ui";
+import { Button, Card, Dialog, StateCard, Tag } from "../components/kit";
+import { Empty, Loading, PageHead, Reasons, type Route, ScorePill, useApp, useCopyForClaude } from "../components/ui";
 import { store } from "../format";
 import { MetadataBlock } from "./Analyze";
 
@@ -13,7 +13,7 @@ interface CheckResult { score: number; checks: DraftCheck[]; playbook: Playbook 
 const KIND: Record<DraftCheck["status"], "good" | "bad" | "warn" | "info"> = { pass: "good", fail: "bad", warn: "warn", info: "info" };
 
 export function OptimizerPage({ route }: { route: Route }) {
-  const { status, toast, fail } = useApp();
+  const { status, fail, modal } = useApp();
   const scanId = Number(route.params.get("scan")) || null;
   const saved = store<DraftForm>("draft");
   const [f, setF] = useState<DraftForm>({
@@ -36,10 +36,21 @@ export function OptimizerPage({ route }: { route: Route }) {
   };
   useEffect(() => { if (f.title || f.description) check(); }, []); // eslint-disable-line
 
+  const copyForClaude = useCopyForClaude();
   const rewrite = async () => {
     if (!status?.has_ai_key) {
-      return toast(status?.desktop ? "Add an Anthropic API key to rewrite drafts" : "Rewriting drafts needs the desktop app", "info",
-        status?.desktop ? "You can add one in Settings, under AI assistant." : undefined);
+      modal((close) => (
+        <Dialog title="Rewrite with Claude" desc="Claude reviews your draft for click-through and watch time, then rewrites the title, description and tags."
+          footer={<>
+            <Button onClick={close}>Cancel</Button>
+            {status?.desktop && <Button href="#/settings" onClick={close}>Add an API key…</Button>}
+            <Button variant="primary" icon="copy" onClick={() => { close(); copyForClaude(() => call("aiDraftPrompt", draft())); }}>Copy for Claude.ai</Button>
+          </>}>
+          <p className="t2" style={{ margin: 0 }}><b>With a Claude plan</b> (Pro, Max or Team): copy the request, then paste it into the Claude chat that opens. No API key needed.</p>
+          <p className="secondary" style={{ margin: 0 }}>With an Anthropic API key, the rewrite appears here instead. The API is billed separately from Claude plans.</p>
+        </Dialog>
+      ));
+      return;
     }
     setAI({ loading: true });
     try { setAI({ data: await call("aiMetadata", draft()) }); } catch (e) { setAI({}); fail(e, "The draft couldn’t be rewritten"); }

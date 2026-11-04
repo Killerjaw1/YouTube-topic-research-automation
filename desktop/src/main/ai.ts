@@ -9,16 +9,10 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { AIProvider } from "../core/engine";
 import type { Draft } from "../core/optimize";
-import { type Report, UserError } from "../core/types";
+import { anglesRequest, metadataRequest, SYSTEM_PROMPT } from "../core/prompts";
+import { UserError } from "../core/types";
 
 const MODEL = "claude-opus-5-5";
-
-const SYSTEM =
-  "You are a YouTube growth strategist who helps brand-new, small channels pick video angles that YouTube will recommend. " +
-  "Small channels lose when they make the same broad video big channels already rank for, because YouTube recommends the " +
-  "established channel instead. They win with specific, differentiated angles: narrower audiences, fresher takes, personal " +
-  "experiments, underserved questions, and formats the big channels skip. Base every suggestion on the research data you are " +
-  "given. Keep titles under 70 characters and avoid misleading clickbait.";
 
 const str = { type: "string" } as const;
 const strs = { type: "array", items: { type: "string" } } as const;
@@ -92,29 +86,6 @@ const METADATA_SCHEMA = {
   additionalProperties: false,
 };
 
-function brief(report: Report): string {
-  const line = (v: Report["videos"][number]) =>
-    `- "${v.title}" | ${v.channel_title} (${v.subs ?? "hidden"} subs) | ${v.views} views | ${Math.round(v.age_days)} days old | ${v.format}`;
-  const breakouts = [...report.videos, ...report.recent].filter((v) => v.breakout).slice(0, 8);
-  return [
-    `Topic: ${report.keyword}`,
-    `Opportunity score: ${report.score}/100 (${report.verdict})`,
-    `Sub-scores: ${JSON.stringify(report.subscores)}`,
-    `Small channel = under ${report.thresholds.small_max} subs; big = ${report.thresholds.big_min}+ subs.`,
-    "Findings:",
-    ...report.reasons.map((r) => `- ${r.text}`),
-    `Format data: ${JSON.stringify(report.formats)}`,
-    "",
-    "Current top search results:",
-    ...report.videos.slice(0, 15).map(line),
-    "",
-    "Small-channel breakouts (videos far outperforming their channel size):",
-    ...(breakouts.length ? breakouts.map(line) : ["- none found"]),
-    "",
-    "Words common in the best-performing titles: " + report.title_words.map((w) => w.word).join(", "),
-  ].join("\n");
-}
-
 async function call<T>(apiKey: string, prompt: string, schema: object): Promise<T> {
   const client = new Anthropic({ apiKey });
   let response;
@@ -122,7 +93,7 @@ async function call<T>(apiKey: string, prompt: string, schema: object): Promise<
     response = await client.beta.messages.create({
       model: MODEL,
       max_tokens: 16000,
-      system: SYSTEM,
+      system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: prompt }],
       output_config: { effort: "medium", format: { type: "json_schema", schema: schema as any } },
       // If a safety classifier declines the request, retry server-side on Anthropic's recommended fallback model.
@@ -148,21 +119,9 @@ async function call<T>(apiKey: string, prompt: string, schema: object): Promise<
 
 export const claude: AIProvider = {
   angles(apiKey, report, note) {
-    const prompt = `${brief(report)}${note ? `\n\nAbout my channel: ${note}` : ""}
-
-Give me 5 differentiated angles a small channel can realistically win with, plus Shorts ideas, narrower keywords to research next, ready-to-paste upload metadata for the strongest angle, and a retention plan for that video.`;
-    return call(apiKey, prompt, ANGLES_SCHEMA);
+    return call(apiKey, anglesRequest(report, note), ANGLES_SCHEMA);
   },
   metadata(apiKey, draft: Draft, report) {
-    const parts = [
-      "Here is my draft upload. Critique it for click-through rate and watch time, then rewrite the metadata.",
-      `Target search keyword: ${draft.keyword || "(not set)"}`,
-      `Format: ${draft.format ?? "long"}${draft.minutes ? `, about ${draft.minutes} minutes` : ""}`,
-      `Draft title: ${draft.title || "(empty)"}`,
-      `Draft description:\n${draft.description || "(empty)"}`,
-      `Draft tags: ${draft.tags || "(empty)"}`,
-    ];
-    if (report) parts.push("", "Research on this topic:", brief(report));
-    return call(apiKey, parts.join("\n"), METADATA_SCHEMA);
+    return call(apiKey, metadataRequest(draft, report), METADATA_SCHEMA);
   },
 };

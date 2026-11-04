@@ -197,7 +197,7 @@ export function SettingsPage() {
         </SettingRow>
       </SettingsGroup>
 
-      <SettingsGroup id="s-ai" title="AI assistant" desc="Optional. Uses Claude to suggest angles, write metadata and plan retention from your research. Requests are billed to your Anthropic account.">
+      <SettingsGroup id="s-ai" title="AI assistant" desc={<>Optional. Claude suggests angles, writes metadata and plans retention from your research. <b>With a Claude plan</b> (Pro, Max or Team) you don’t need a key: choose <i>Copy for Claude.ai</i> on any report or in the Upload optimizer and paste it into Claude. A key shows the results inside NicheRadar instead; the API is billed to your Anthropic account, separately from Claude plans.</>}>
         <SettingRow title="Anthropic API key" desc={s.anthropic_api_key_hint ? <Status tone="ok">Saved, ends in {s.anthropic_api_key_hint}</Status> : <span>Create a key in the {LINK("https://console.anthropic.com/", "Anthropic Console")}.</span>}>
           {s.anthropic_api_key_hint && <Button size="sm" variant="ghost" className="danger" onClick={() => forget("anthropic_api_key", "Anthropic API key removed")}>Remove</Button>}
         </SettingRow>

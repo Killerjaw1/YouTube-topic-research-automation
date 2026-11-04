@@ -2,7 +2,7 @@
 
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { Reason, Status as AppStatus, VideoRow } from "../../core/types";
-import { call, setNativeTheme } from "../api";
+import { call, openExternal, setNativeTheme } from "../api";
 import { fmt, reportTone, store, tone } from "../format";
 import { Icon, type IconName } from "./Icon";
 import { Banner, Button, ChipGroup, EmptyState, Segmented, Status, Switch, Tag, Thumbnail, type Tone } from "./kit";
@@ -247,16 +247,35 @@ export function Checklist({ items }: { items: string[] }) {
   return <ol className="steps-list">{items.map((t) => <li key={t}><span>{t}</span></li>)}</ol>;
 }
 
+/** Put text on the clipboard, with a fallback for when the async clipboard API isn't allowed. */
+export async function copyText(value: string) {
+  try { await navigator.clipboard.writeText(value); } catch {
+    const ta = document.createElement("textarea");
+    ta.value = value; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); } catch { /* ignore */ }
+    ta.remove();
+  }
+}
+
+/**
+ * Copy a ready-made request and open a new Claude.ai chat, so a Claude plan (Pro, Max, Team) can be used
+ * without an Anthropic API key. The prompt comes from the engine (aiPrompt or aiDraftPrompt).
+ */
+export function useCopyForClaude() {
+  const { toast, fail } = useApp();
+  return async (getPrompt: () => Promise<string>) => {
+    try {
+      await copyText(await getPrompt());
+      openExternal("https://claude.ai/new");
+      toast("Copied for Claude.ai", "ok", "A new Claude chat is opening in your browser. Paste with Ctrl+V and send.");
+    } catch (e) { fail(e, "The request couldn’t be copied"); }
+  };
+}
+
 export function CopyButton({ text, what = "Copied", label, size = "sm" }: { text: string | (() => string); what?: string; label?: string; size?: "sm" }) {
   const { toast } = useApp();
   const copy = async () => {
-    const value = typeof text === "function" ? text() : text;
-    try { await navigator.clipboard.writeText(value); } catch {
-      const ta = document.createElement("textarea");
-      ta.value = value; document.body.appendChild(ta); ta.select();
-      try { document.execCommand("copy"); } catch { /* ignore */ }
-      ta.remove();
-    }
+    await copyText(typeof text === "function" ? text() : text);
     toast(what);
   };
   return label

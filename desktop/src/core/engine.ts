@@ -6,6 +6,7 @@
 import { Analytics, demoOpenings, demoOverview, demoRetention, demoSeries } from "./analytics";
 import { DemoYouTube, demoReddit, demoSuggestions } from "./demo";
 import { checkDraft, playbook, type Draft } from "./optimize";
+import { anglesRequest, claudeAiPrompt, metadataRequest } from "./prompts";
 import { analyze, effectiveSmallMax, enrich, findOutliers, isBreakout, sizeClass, titleWords } from "./scoring";
 import { autocomplete, expand, redditTop } from "./sources";
 import type { Store } from "./store";
@@ -16,7 +17,7 @@ import {
 import { csv, median, round } from "./util";
 import { publishedAfterDays, YouTubeClient, type YouTubeSource } from "./youtube";
 
-export const VERSION = "1.1.0";
+export const VERSION = "1.1.1";
 
 export interface AIProvider {
   angles(apiKey: string, report: Report, note: string): Promise<AIAngles>;
@@ -320,6 +321,19 @@ export class Engine {
     return result;
   }
 
+  /** The angles request as a message to paste into Claude.ai (no API key needed). */
+  aiPrompt(scanId: number): string {
+    const scan = this.store.getScan(scanId);
+    if (!scan || scan.kind !== "analyze") throw new UserError("Run a topic analysis first.");
+    const mine = this.settings.my_channel;
+    return claudeAiPrompt(anglesRequest(scan.payload, mine ? `${mine.title} has ${mine.subs} subscribers.` : ""), "angles");
+  }
+
+  /** The draft review request as a message to paste into Claude.ai (no API key needed). */
+  aiDraftPrompt(draft: Draft & { scan_id?: number | null }): string {
+    return claudeAiPrompt(metadataRequest(draft, this.reportFor(draft.keyword ?? "", draft.scan_id)), "metadata");
+  }
+
   async aiMetadata(draft: Draft & { scan_id?: number | null }) {
     const key = this.aiKey();
     return this.opts.ai!.metadata(key, draft, this.reportFor(draft.keyword ?? "", draft.scan_id));
@@ -417,7 +431,7 @@ export class Engine {
 /** Methods the UI may call over IPC (everything else on Engine stays internal). */
 export const ENGINE_METHODS = [
   "status", "getSettings", "saveSettings", "forgetSecret", "testYouTube", "clearCache", "suggest", "analyze", "discover", "outliers",
-  "categories", "trending", "reddit", "connectChannel", "forgetChannel", "aiAngles", "aiMetadata", "optimizeCheck", "analyticsStatus",
+  "categories", "trending", "reddit", "connectChannel", "forgetChannel", "aiAngles", "aiMetadata", "aiPrompt", "aiDraftPrompt", "optimizeCheck", "analyticsStatus",
   "analyticsOverview", "analyticsRetention", "analyticsSeries", "analyticsOpenings", "analyticsDisconnect", "listScans", "getScan", "deleteScan", "scanCsv", "listIdeas",
   "addIdea", "updateIdea", "deleteIdea", "ideasCsv", "listTracked", "track", "untrack", "refreshTracked",
 ] as const;

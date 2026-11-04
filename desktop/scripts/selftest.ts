@@ -225,6 +225,14 @@ async function main() {
     assert.equal(latest.focus, "short", "re-scoring keeps the topic's format focus");
     engine.untrack("pac man secrets");
   });
+  await test("Copy for Claude.ai: self-contained requests without an API key", () => {
+    const p = engine.aiPrompt(report.scan_id!);
+    assert.ok(p.startsWith("You are a YouTube growth strategist"), "includes the role");
+    assert.ok(p.includes(`Topic: ${report.keyword}`) && p.includes("Current top search results:"), "includes the research");
+    assert.ok(p.includes("5. Keywords to research next."), "asks for a readable layout, not JSON");
+    const d = engine.aiDraftPrompt({ keyword: report.keyword, title: "My draft title", description: "", tags: "", format: "short", minutes: null, scan_id: report.scan_id });
+    assert.ok(d.includes("Draft title: My draft title") && d.includes("Research on this topic:") && d.includes("1. Feedback"));
+  });
   await test("Scans: list, CSV, delete", () => {
     const scans = engine.listScans();
     assert.ok(scans.length >= 2);
