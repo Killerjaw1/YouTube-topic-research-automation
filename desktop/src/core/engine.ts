@@ -209,7 +209,9 @@ export class Engine {
   async discover(seed: string, mode: "full" | "alphabet" | "questions" = "full"): Promise<Candidate[]> {
     if (!seed.trim()) throw new UserError("Enter a niche to explore.");
     if (this.isDemo()) {
-      const base = [...demoSuggestions(seed), `how to ${seed}`, `why ${seed}`, `is ${seed} worth it`, `best ${seed}`];
+      const base = mode === "questions"
+        ? ["why", "how does", "what happens when", "why does", "how did", "is", "what is the", "why is"].map((q) => `${q} ${seed}`)
+        : [...demoSuggestions(seed), `how to ${seed}`, `why ${seed}`, `is ${seed} worth it`, `best ${seed}`];
       return base.map((keyword, i) => ({ keyword, source: "demo", hits: 1 + (i % 4) }));
     }
     return expand(seed, mode, this.settings.language, this.settings.region, this.store);

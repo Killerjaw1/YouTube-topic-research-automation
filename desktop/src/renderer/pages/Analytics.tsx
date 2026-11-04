@@ -5,6 +5,7 @@ import { BarChart, RetentionChart } from "../components/charts";
 import { Banner, Button, Card, DetailPanel, Facts, Segmented } from "../components/kit";
 import { Empty, go, Loading, PageHead, Reasons, type Route, Thumb, useApp } from "../components/ui";
 import { fmt, fmtDur } from "../format";
+import { seedFrom } from "../../core/series";
 import { OpeningsSection, SeriesSection } from "./AnalyticsSeries";
 
 export function useConnectAnalytics() {
@@ -129,7 +130,10 @@ function RetentionPanel({ video, demo, onClose }: { video: any; demo: boolean; o
   useEffect(() => { setData(null); call("analyticsRetention", video.video, demo).then(setData).catch((e) => setError(e.message)); }, [video, demo]);
   return (
     <DetailPanel title={video.title} sub="Audience retention" onClose={onClose}
-      footer={!String(video.video).startsWith("demo") ? <Button variant="primary" icon="external" href={`https://studio.youtube.com/video/${video.video}/analytics`} target="_blank" rel="noopener">Open in YouTube Studio</Button> : undefined}>
+      footer={<>
+        <Button variant="primary" icon="compass" href={`#/discover?seed=${encodeURIComponent(seedFrom(video.title ?? ""))}&mode=questions`}>More like this</Button>
+        {!String(video.video).startsWith("demo") && <Button icon="external" href={`https://studio.youtube.com/video/${video.video}/analytics`} target="_blank" rel="noopener">Open in YouTube Studio</Button>}
+      </>}>
       <Facts rows={[["Views", fmt(video.views)], ["Average viewed", `${(video.averageViewPercentage ?? 0).toFixed(0)}%`],
         ["Average view", fmtDur(Math.round(video.averageViewDuration ?? 0))], ["Length", fmtDur(video.duration_s) || "–"], ["Subscribers gained", `+${fmt(video.subscribersGained)}`]]} />
       {error ? <p className="t2" style={{ margin: 0 }}>{error}</p> : !data ? <Loading title="Loading retention" rows={3} /> : <>

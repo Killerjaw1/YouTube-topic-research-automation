@@ -91,6 +91,12 @@ export function subjectTerms(title: string): string[] {
   return [...out];
 }
 
+/** A short search seed for "more like this video": its first two-word subject ("pac man"), else its first subject word. */
+export function seedFrom(title: string): string {
+  const terms = subjectTerms(title);
+  return terms.find((t) => t.includes(" ")) ?? terms[0] ?? title.trim();
+}
+
 /** The term as it's written in a title ("Pac-Man" for "pac man"), or title case if not found. */
 function displayName(term: string, titles: string[]): string {
   const re = new RegExp(term.split(" ").map((w) => w.replace(/[^a-z0-9]/g, "")).join("[\\s\\-:]+"), "i");

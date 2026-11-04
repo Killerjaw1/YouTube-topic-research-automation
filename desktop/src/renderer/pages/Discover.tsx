@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Candidate, RedditPost, Report } from "../../core/types";
+import type { Candidate, Focus, RedditPost, Report } from "../../core/types";
 import { call } from "../api";
 import { ideaModal } from "../components/IdeaModal";
 import { Button, Card, Dialog, ListRow, Tag } from "../components/kit";
@@ -16,17 +16,21 @@ export function DiscoverPage({ route }: { route: Route }) {
         <button role="tab" aria-selected={tab === "youtube"} onClick={() => go("#/discover?tab=youtube")}>YouTube search suggestions</button>
         <button role="tab" aria-selected={tab === "reddit"} onClick={() => go("#/discover?tab=reddit")}>Reddit</button>
       </div>
-      {tab === "reddit" ? <RedditTab /> : <YouTubeTab seed={route.params.get("seed") ?? ""} />}
+      {tab === "reddit" ? <RedditTab sub={route.params.get("sub") ?? ""} /> : <YouTubeTab seed={route.params.get("seed") ?? ""} initialMode={route.params.get("mode")} />}
     </>
   );
 }
 
 interface Row extends Candidate { sel: boolean; loading?: boolean; result?: Report; error?: string }
 
-function YouTubeTab({ seed: initial }: { seed: string }) {
+type Mode = "full" | "alphabet" | "questions";
+const FOCUS_NOTE: Record<Focus, string> = { all: "", short: " Scores compare against Shorts only.", long: " Scores compare against long-form videos only." };
+
+function YouTubeTab({ seed: initial, initialMode }: { seed: string; initialMode: string | null }) {
   const { refresh, toast, fail, modal } = useApp();
   const [seed, setSeed] = useState(initial);
-  const [mode, setMode] = useState<"full" | "alphabet" | "questions">("full");
+  const [mode, setMode] = useState<Mode>(initialMode === "questions" || initialMode === "alphabet" ? initialMode : "full");
+  const focus = store<Focus>("focus") ?? "all";
   const [state, setState] = useState<{ loading?: boolean; error?: string }>({});
   const [rows, setRows] = useState<Row[] | null>(null);
   const [sortByScore, setSortByScore] = useState(false);
@@ -36,7 +40,7 @@ function YouTubeTab({ seed: initial }: { seed: string }) {
   const find = async (s = seed) => {
     if (!s.trim()) return;
     setState({ loading: true });
-    history.replaceState(null, "", "#/discover?seed=" + encodeURIComponent(s.trim()));
+    history.replaceState(null, "", "#/discover?seed=" + encodeURIComponent(s.trim()) + (mode !== "full" ? `&mode=${mode}` : ""));
     try {
       const c = await call("discover", s.trim(), mode);
       setRows(c.map((x, i) => ({ ...x, sel: i < 8 })));
@@ -56,7 +60,7 @@ function YouTubeTab({ seed: initial }: { seed: string }) {
       if (cancel.current) break;
       update(r.keyword, { loading: true });
       try {
-        update(r.keyword, { loading: false, result: await call("analyze", r.keyword, "quick"), error: undefined });
+        update(r.keyword, { loading: false, result: await call("analyze", r.keyword, "quick", focus), error: undefined });
       } catch (e: any) {
         update(r.keyword, { loading: false, error: e.message });
         if (/quota|key/i.test(e.message)) { fail(e, "Scoring stopped"); break; }
@@ -89,7 +93,7 @@ function YouTubeTab({ seed: initial }: { seed: string }) {
       {state.loading && <Loading title="Collecting search suggestions" rows={6} />}
       {state.error && <Empty icon="warn" title="Suggestions couldn’t be loaded" actions={<Button onClick={() => find()}>Try again</Button>}>{state.error}</Empty>}
       {rows && !state.loading && (rows.length ? (
-        <Card flush title={`${rows.length} search phrases`} sub="Popularity shows how often a phrase came up across suggestion lookups."
+        <Card flush title={`${rows.length} search phrases`} sub={`Popularity shows how often a phrase came up across suggestion lookups.${FOCUS_NOTE[focus]}`}
           actions={<>
             <Button size="sm" variant="ghost" onClick={() => setRows(rows.map((r) => ({ ...r, sel: false })))}>Clear selection</Button>
             <Button size="sm" variant="ghost" onClick={() => setRows(rows.map((r, i) => ({ ...r, sel: i < 10 })))}>Select top 10</Button>
@@ -138,17 +142,21 @@ function YouTubeTab({ seed: initial }: { seed: string }) {
   );
 }
 
-function RedditTab() {
+/** Subreddits where people ask "why" and "how" questions, which make good explainer topics. */
+const CURIOUS = ["todayilearned", "explainlikeimfive", "NoStupidQuestions", "askscience", "geography", "gaming", "retrogaming", "Minecraft"];
+
+function RedditTab({ sub: fromLink }: { sub: string }) {
   const { modal } = useApp();
-  const [sub, setSub] = useState(store<string>("reddit") ?? "");
+  const [sub, setSub] = useState(fromLink || store<string>("reddit") || "");
   const [period, setPeriod] = useState("week");
   const [state, setState] = useState<{ loading?: boolean; posts?: RedditPost[]; error?: string }>({});
-  const load = async () => {
-    if (!sub.trim()) return;
-    store("reddit", sub.trim());
+  const load = async (name = sub) => {
+    if (!name.trim()) return;
+    store("reddit", name.trim());
     setState({ loading: true });
-    try { setState({ posts: (await call("reddit", sub.trim(), period)).posts }); } catch (e: any) { setState({ error: e.message }); }
+    try { setState({ posts: (await call("reddit", name.trim(), period)).posts }); } catch (e: any) { setState({ error: e.message }); }
   };
+  const pick = (name: string) => { setSub(name); load(name); };
   useEffect(() => { if (sub) load(); }, []); // eslint-disable-line
   const toTopic = (title: string) => modal((close) => <ThreadToTopic title={title} close={close} />);
 
@@ -166,9 +174,12 @@ function RedditTab() {
           <Button type="submit" variant="primary" busy={state.loading}>Show threads</Button>
         </form>
         <p className="secondary" style={{ margin: "8px 0 0" }}>Popular threads show what people are asking about, often before it trends on YouTube. This uses no quota.</p>
+        <div className="row mt-sm"><span className="secondary">Good for explainer ideas:</span>
+          <div className="chips">{CURIOUS.map((c) => <button key={c} type="button" className="chip" aria-pressed={sub === c} onClick={() => pick(c)}>r/{c}</button>)}</div>
+        </div>
       </Card>
       {state.loading && <Loading title="Loading threads" rows={6} />}
-      {state.error && <Empty icon="warn" title="Reddit couldn’t be reached" actions={<Button onClick={load}>Try again</Button>}>{state.error}</Empty>}
+      {state.error && <Empty icon="warn" title="Reddit couldn’t be reached" actions={<Button onClick={() => load()}>Try again</Button>}>{state.error}</Empty>}
       {state.posts && (state.posts.length ? (
         <Card flush title={`${state.posts.length} threads`} sub="Choose Analyze to turn a thread into a search phrase and score it.">
           <div className="list">
