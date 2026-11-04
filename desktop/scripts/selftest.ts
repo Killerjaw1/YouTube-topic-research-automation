@@ -17,6 +17,7 @@ import { DEFAULT_SETTINGS, type VideoRow } from "../src/core/types";
 import { hash, quartiles, quotaDay } from "../src/core/util";
 import { parseDuration } from "../src/core/youtube";
 import { groupSeries, holdAt, openingAt, subjectTerms } from "../src/core/series";
+import { postsFromFeed, redditTop } from "../src/core/sources";
 import { FilePersist } from "../src/main/persist";
 
 let passed = 0, failed = 0;
@@ -232,6 +233,34 @@ async function main() {
     assert.ok(p.includes("5. Keywords to research next."), "asks for a readable layout, not JSON");
     const d = engine.aiDraftPrompt({ keyword: report.keyword, title: "My draft title", description: "", tags: "", format: "short", minutes: null, scan_id: report.scan_id });
     assert.ok(d.includes("Draft title: My draft title") && d.includes("Research on this topic:") && d.includes("1. Feedback"));
+  });
+  await test("Reddit: public JSON, fallbacks when blocked, app ID, clear errors", async () => {
+    const listing = { data: { children: [{ data: { title: "Why do crows &amp; ravens hold grudges?", score: 1200, num_comments: 88, permalink: "/r/x/1", link_flair_text: "" } },
+      { data: { title: "pinned", stickied: true } }] } };
+    const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+    const feed = `<feed><entry><title>TIL lightning goes up</title><link href="https://www.reddit.com/r/todayilearned/comments/abc/x/"/></entry></feed>`;
+    const seen: string[] = [];
+    const ok = await redditTop("r/todayilearned", "week", 30, { fetcher: async (u) => { seen.push(u); return json(listing); } });
+    assert.equal(ok.length, 1);
+    assert.equal(ok[0].title, "Why do crows & ravens hold grudges?");
+    assert.ok(seen[0].startsWith("https://www.reddit.com/r/todayilearned/top.json"));
+    const viaFeed = await redditTop("todayilearned", "week", 30, { fetcher: async (u) => (u.includes(".rss") ? new Response(feed, { status: 200 }) : new Response("blocked", { status: 403 })) });
+    assert.equal(viaFeed[0].title, "TIL lightning goes up");
+    assert.equal(viaFeed[0].score, -1, "the feed has no vote counts");
+    assert.equal(postsFromFeed("<feed></feed>").length, 0);
+    await assert.rejects(redditTop("gaming", "week", 30, { fetcher: async () => new Response("blocked", { status: 403 }) }), (e: any) => e.kind === "RedditBlocked");
+    await assert.rejects(redditTop("nosuchsub", "week", 30, { fetcher: async () => new Response("", { status: 404 }) }), /doesn’t exist/);
+    await assert.rejects(redditTop("bad name!", "week"), /subreddit name/);
+    const calls: { u: string; auth: string }[] = [];
+    const viaApp = await redditTop("gaming", "week", 30, { clientId: "abc123", fetcher: async (u, init) => {
+      calls.push({ u, auth: String((init?.headers as Record<string, string>)?.Authorization ?? "") });
+      return u.includes("access_token") ? json({ access_token: "tok" }) : json(listing);
+    } });
+    assert.equal(viaApp.length, 1);
+    assert.equal(calls[0].auth, "Basic " + btoa("abc123:"), "installed-app client ID with an empty secret");
+    assert.ok(calls[1].u.startsWith("https://oauth.reddit.com/r/gaming/top") && calls[1].auth === "Bearer tok");
+    await assert.rejects(redditTop("gaming", "week", 30, { clientId: "wrong", fetcher: async () => new Response("", { status: 401 }) }), /didn’t accept the app ID/);
+    await assert.rejects(redditTop("gaming", "week", 30, { fetcher: async () => new Response("", { status: 429 }) }), /limiting requests/);
   });
   await test("Scans: list, CSV, delete", () => {
     const scans = engine.listScans();

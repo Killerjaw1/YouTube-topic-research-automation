@@ -149,12 +149,12 @@ function RedditTab({ sub: fromLink }: { sub: string }) {
   const { modal } = useApp();
   const [sub, setSub] = useState(fromLink || store<string>("reddit") || "");
   const [period, setPeriod] = useState("week");
-  const [state, setState] = useState<{ loading?: boolean; posts?: RedditPost[]; error?: string }>({});
+  const [state, setState] = useState<{ loading?: boolean; posts?: RedditPost[]; error?: string; blocked?: boolean }>({});
   const load = async (name = sub) => {
     if (!name.trim()) return;
     store("reddit", name.trim());
     setState({ loading: true });
-    try { setState({ posts: (await call("reddit", name.trim(), period)).posts }); } catch (e: any) { setState({ error: e.message }); }
+    try { setState({ posts: (await call("reddit", name.trim(), period)).posts }); } catch (e: any) { setState({ error: e.message, blocked: e.kind === "RedditBlocked" }); }
   };
   const pick = (name: string) => { setSub(name); load(name); };
   useEffect(() => { if (sub) load(); }, []); // eslint-disable-line
@@ -179,14 +179,15 @@ function RedditTab({ sub: fromLink }: { sub: string }) {
         </div>
       </Card>
       {state.loading && <Loading title="Loading threads" rows={6} />}
-      {state.error && <Empty icon="warn" title="Reddit couldn’t be reached" actions={<Button onClick={() => load()}>Try again</Button>}>{state.error}</Empty>}
+      {state.error && <Empty icon="warn" title={state.blocked ? "Reddit didn’t send the threads" : "Reddit couldn’t be reached"}
+        actions={<><Button onClick={() => load()}>Try again</Button>{state.blocked && <Button variant="primary" href="#/settings?s=reddit">Set up Reddit access…</Button>}</>}>{state.error}</Empty>}
       {state.posts && (state.posts.length ? (
         <Card flush title={`${state.posts.length} threads`} sub="Choose Analyze to turn a thread into a search phrase and score it.">
           <div className="list">
             {state.posts.map((p, i) => (
               <ListRow key={i} title={p.title}
-                leading={<div className="right" style={{ width: 56 }}><div className="tabular" style={{ fontWeight: 600 }}>{fmt(p.score)}</div><div className="secondary">upvotes</div></div>}
-                secondary={`${fmt(p.comments)} comments${p.flair ? ` · ${p.flair}` : ""}`}
+                leading={p.score >= 0 ? <div className="right" style={{ width: 56 }}><div className="tabular" style={{ fontWeight: 600 }}>{fmt(p.score)}</div><div className="secondary">upvotes</div></div> : undefined}
+                secondary={[p.comments >= 0 ? `${fmt(p.comments)} comments` : "", p.flair].filter(Boolean).join(" · ") || undefined}
                 end={<>{p.url && <Button size="sm" variant="ghost" iconOnly icon="external" label="Open thread" href={p.url} target="_blank" rel="noopener" />}<Button size="sm" onClick={() => toTopic(p.title)}>Analyze…</Button></>} />
             ))}
           </div>

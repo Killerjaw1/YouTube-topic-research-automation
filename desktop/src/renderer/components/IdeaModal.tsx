@@ -39,7 +39,7 @@ function IdeaForm({ data, close, onSaved }: { data: Partial<Idea>; close(): void
   const editing = Boolean(data.id);
   const [f, setF] = useState(draftOf(data));
   const [busy, setBusy] = useState(false);
-  const set = (k: keyof IdeaDraft) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+  const set = (k: keyof IdeaDraft) => (e: { target: { value: string } }) => { const v = e.target.value; setF((p) => ({ ...p, [k]: v })); };
   const save = async () => {
     setBusy(true);
     try {

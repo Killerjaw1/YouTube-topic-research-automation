@@ -26,10 +26,13 @@ export function OptimizerPage({ route }: { route: Route }) {
 
   const draft = (x = f) => ({ ...x, minutes: x.minutes ? Number(x.minutes) : null, scan_id: scanId });
   const set = (k: keyof DraftForm) => (e: { target: { value: string } }) => {
-    const next = { ...f, [k]: e.target.value } as DraftForm;
-    setF(next);
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => store("draft", next), 400);
+    const v = e.target.value;
+    setF((prev) => {
+      const next = { ...prev, [k]: v } as DraftForm;
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => store("draft", next), 400);
+      return next;
+    });
   };
   const check = async (x = f) => {
     try { setResult(await call("optimizeCheck", draft(x))); } catch (e) { fail(e, "The draft couldn’t be checked"); }
@@ -76,7 +79,7 @@ export function OptimizerPage({ route }: { route: Route }) {
             <div className="form-row">
               <label className="field">Target keyword<input className="input" value={f.keyword} onChange={set("keyword")} placeholder="What viewers search for" /></label>
               <label className="field">Format<select className="select" value={f.format} onChange={set("format")}><option value="long">Long-form</option><option value="short">Short</option></select></label>
-              <label className="field"><span>Length <span className="hint">minutes</span></span><input className="input" type="number" step="0.5" min="0" value={f.minutes} onChange={set("minutes")} /></label>
+              <label className="field"><span>Length <span className="hint">minutes</span></span><input className="input" type="number" step="any" min="0" value={f.minutes} onChange={set("minutes")} /></label>
             </div>
             <label className="field"><span>Title <span className="hint">{f.title.length ? `${f.title.length} of 100 characters · 40–60 works best` : ""}</span></span>
               <input className="input" maxLength={100} value={f.title} onChange={set("title")} placeholder="Your draft title" /></label>

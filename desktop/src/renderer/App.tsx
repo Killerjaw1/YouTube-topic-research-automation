@@ -94,13 +94,16 @@ function useAppStatus(): { tone: Tone; line: string; detail: string; upd: Update
 export function App() {
   const { status, palette, modal, refresh, panel } = useApp();
   const [route, setRoute] = useState(parseRoute);
+  // A page is rebuilt only when the user navigates (hashchange). Pages that record their state in the
+  // address with history.replaceState (a search topic, for example) must not be remounted by it.
+  const [visit, setVisit] = useState(0);
   const [onboarding, setOnboarding] = useState<boolean | null>(null);
   const [navOpen, setNavOpen] = useState(false);
   const mainRef = useRef<HTMLDivElement>(null);
   const app = useAppStatus();
 
   useEffect(() => {
-    const onHash = () => { setRoute(parseRoute()); setNavOpen(false); mainRef.current?.scrollTo(0, 0); };
+    const onHash = () => { setRoute(parseRoute()); setVisit((n) => n + 1); setNavOpen(false); mainRef.current?.scrollTo(0, 0); };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -187,7 +190,7 @@ export function App() {
 
         <div className="workspace">
           <main className="main" ref={mainRef}>
-            <div className={`page ${PAGES[page].narrow ? "narrow" : ""}`} key={location.hash}>{PAGES[page].render(route)}</div>
+            <div className={`page ${PAGES[page].narrow ? "narrow" : ""}`} key={visit}>{PAGES[page].render(route)}</div>
           </main>
           {panel.node}
         </div>

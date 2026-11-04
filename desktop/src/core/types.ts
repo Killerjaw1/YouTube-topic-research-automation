@@ -39,6 +39,8 @@ export interface Settings {
   weekly_check: boolean;
   /** When the weekly check last ran (seconds since epoch), or 0. */
   last_weekly_check: number;
+  /** Optional Reddit "installed app" client ID for reliable read-only access. */
+  reddit_client_id: string;
 }
 
 export interface WeeklyCheckResult {
@@ -68,6 +70,7 @@ export const DEFAULT_SETTINGS: Settings = {
   onboarded: false,
   weekly_check: false,
   last_weekly_check: 0,
+  reddit_client_id: "",
 };
 
 /** Values kept apart from settings and encrypted at rest in the desktop app. */

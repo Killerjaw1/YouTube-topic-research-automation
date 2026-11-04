@@ -1,6 +1,6 @@
 /** Electron main process: window, IPC bridge to the engine, files, PDF export, Google sign-in, updates. */
 
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, Notification, safeStorage, screen, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, Notification, safeStorage, screen, shell } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { Engine, ENGINE_METHODS, type EngineMethod } from "../core/engine";
@@ -97,7 +97,7 @@ app.whenReady().then(() => {
   if (!primary) return;
   Menu.setApplicationMenu(null);
   const dataDir = process.env.NICHERADAR_HOME || path.join(app.getPath("userData"), "data");
-  engine = new Engine(new Store(new FilePersist(dataDir), osCipher(safeStorage)), { desktop: true, ai: claude });
+  engine = new Engine(new Store(new FilePersist(dataDir), osCipher(safeStorage)), { desktop: true, ai: claude, fetcher: (url, init) => net.fetch(url, init) });
 
   ipcMain.handle("engine", async (_e, method: EngineMethod, args: unknown[]) => {
     if (!ENGINE_METHODS.includes(method)) return { ok: false, error: `Unknown method ${method}` };

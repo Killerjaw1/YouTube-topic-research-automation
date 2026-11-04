@@ -11,7 +11,7 @@ function IdeaEditor({ idea, onSaved, onClose }: { idea: Idea; onSaved(): void; o
   const [f, setF] = useState<IdeaDraft>(draftOf(idea));
   const [busy, setBusy] = useState(false);
   useEffect(() => setF(draftOf(idea)), [idea]);
-  const set = (k: keyof IdeaDraft) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+  const set = (k: keyof IdeaDraft) => (e: { target: { value: string } }) => { const v = e.target.value; setF((p) => ({ ...p, [k]: v })); };
   const dirty = JSON.stringify(f) !== JSON.stringify(draftOf(idea));
   const save = async () => {
     setBusy(true);

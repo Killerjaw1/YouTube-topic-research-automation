@@ -8,7 +8,7 @@ import { DemoYouTube, demoReddit, demoSuggestions } from "./demo";
 import { checkDraft, playbook, type Draft } from "./optimize";
 import { anglesRequest, claudeAiPrompt, metadataRequest } from "./prompts";
 import { analyze, effectiveSmallMax, enrich, findOutliers, isBreakout, sizeClass, titleWords } from "./scoring";
-import { autocomplete, expand, redditTop } from "./sources";
+import { autocomplete, expand, type Fetcher, redditTop } from "./sources";
 import type { Store } from "./store";
 import {
   type AIAngles, type AIMetadata, type Candidate, type Focus, type Idea, IDEA_STATUSES, type MyChannel, type OutlierResult, type PublicSettings,
@@ -28,6 +28,8 @@ export interface EngineOptions {
   /** true in the Electron app; false for the browser demo (always demo data). */
   desktop: boolean;
   ai?: AIProvider;
+  /** fetch for sites that block scripted clients (Reddit). The desktop app passes Electron's Chromium-based fetch. */
+  fetcher?: Fetcher;
 }
 
 export class Engine {
@@ -110,6 +112,7 @@ export class Engine {
     }
     for (const k of ["demo_mode", "auto_small_threshold", "auto_update", "onboarded", "weekly_check"] as const) if (patch[k] !== undefined) clean[k] = Boolean(patch[k]);
     if (patch.google_client_id !== undefined) clean.google_client_id = String(patch.google_client_id).trim();
+    if (patch.reddit_client_id !== undefined) clean.reddit_client_id = String(patch.reddit_client_id).trim().slice(0, 64);
     this.store.updateSettings(clean);
     return this.getSettings();
   }
@@ -255,7 +258,7 @@ export class Engine {
     const ids = await yt.search(o.keyword, { maxResults: 50, order: "viewCount", publishedAfter: publishedAfterDays(days), region: s.region, language: s.language });
     const { videos, channels } = await this.rowsFor(ids);
     const rows = enrich(videos, channels, ids);
-    const maxSubs = o.max_subs || effectiveSmallMax(s);
+    const maxSubs = o.max_subs ? Math.max(100, Math.floor(o.max_subs)) : effectiveSmallMax(s);
     let found = findOutliers(rows, maxSubs);
     if (o.format === "short" || o.format === "long") found = found.filter((r) => r.format === o.format);
     const result: OutlierResult = { keyword: o.keyword, days, max_subs: maxSubs, videos: found, scanned: rows.length, demo: this.isDemo() };
@@ -277,8 +280,9 @@ export class Engine {
 
   async reddit(sub: string, period = "week"): Promise<{ posts: RedditPost[]; demo: boolean }> {
     if (!["day", "week", "month", "year", "all"].includes(period)) period = "week";
-    if (this.isDemo()) return { posts: demoReddit(sub), demo: true };
-    return { posts: await redditTop(sub, period), demo: false };
+    // Reddit needs no YouTube key, so it's live in the desktop app unless sample data is switched on.
+    if (!this.opts.desktop || this.settings.demo_mode) return { posts: demoReddit(sub), demo: true };
+    return { posts: await redditTop(sub, period, 30, { fetcher: this.opts.fetcher, clientId: this.settings.reddit_client_id, store: this.store }), demo: false };
   }
 
   // -------------------------------------------------------------- my channel

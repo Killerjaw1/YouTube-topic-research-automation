@@ -8,7 +8,7 @@ import { useConnectAnalytics } from "./Analytics";
 import { REGIONS } from "./Trending";
 
 const LINK = (href: string, text: string) => <a href={href} target="_blank" rel="noopener">{text}</a>;
-const SECTIONS: [string, string][] = [["youtube", "YouTube data"], ["channel", "Your channel"], ["analytics", "YouTube Analytics"], ["research", "Research"], ["watchlist", "Watchlist"],
+const SECTIONS: [string, string][] = [["youtube", "YouTube data"], ["channel", "Your channel"], ["analytics", "YouTube Analytics"], ["research", "Research"], ["watchlist", "Watchlist"], ["reddit", "Reddit"],
   ["ai", "AI assistant"], ["appearance", "Appearance"], ["updates", "Updates"], ["data", "Data and privacy"]];
 const RESEARCH_KEYS = ["region", "language", "small_channel_max", "big_channel_min", "fresh_days", "cache_hours", "daily_quota"] as const;
 
@@ -26,7 +26,7 @@ export function SettingsPage() {
   const [version, setVersion] = useState("");
   const [upd, setUpd] = useState<UpdateState>({ state: "idle" });
   const formOf = (x: PublicSettings) => ({ region: x.region, language: x.language, small_channel_max: String(x.small_channel_max), big_channel_min: String(x.big_channel_min),
-    fresh_days: String(x.fresh_days), cache_hours: String(x.cache_hours), daily_quota: String(x.daily_quota), google_client_id: x.google_client_id });
+    fresh_days: String(x.fresh_days), cache_hours: String(x.cache_hours), daily_quota: String(x.daily_quota), google_client_id: x.google_client_id, reddit_client_id: x.reddit_client_id ?? "" });
   const load = () => call("getSettings").then((x) => { setS(x); setForm(formOf(x)); }).catch((e) => fail(e, "Settings couldn’t be loaded"));
   useEffect(() => {
     load();
@@ -34,6 +34,11 @@ export function SettingsPage() {
     updates.state().then(setUpd);
     return updates.onChange(setUpd);
   }, []); // eslint-disable-line
+  // Links such as #/settings?s=reddit open at that section.
+  useEffect(() => {
+    const id = new URLSearchParams(location.hash.split("?")[1] ?? "").get("s");
+    if (s && id) requestAnimationFrame(() => document.getElementById(`s-${id}`)?.scrollIntoView({ block: "start" }));
+  }, [Boolean(s)]); // eslint-disable-line
   if (!s) return <><PageHead title="Settings" /><Loading title="Loading settings" /></>;
 
   const run = async (what: string, fn: () => Promise<unknown>) => { setBusy(what); try { await fn(); } finally { setBusy(null); } };
@@ -59,7 +64,7 @@ export function SettingsPage() {
     try { setS(await call("forgetSecret", key)); toast(msg); refresh(); } catch (e) { fail(e, "The key wasn’t removed"); }
   };
   const ch = s.my_channel;
-  const field = (k: string) => ({ value: form[k] ?? "", onChange: (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value }) });
+  const field = (k: string) => ({ value: form[k] ?? "", onChange: (e: { target: { value: string } }) => { const v = e.target.value; setForm((f) => ({ ...f, [k]: v })); } });
   const researchDirty = RESEARCH_KEYS.some((k) => form[k] !== formOf(s)[k]);
   const pct = "percent" in upd ? upd.percent ?? 0 : 0;
   const updText: Record<UpdateState["state"], string> = {
@@ -88,7 +93,7 @@ export function SettingsPage() {
         </SettingRow>
         <SettingRow title={s.youtube_api_key_hint ? "Replace the key" : "Add a key"} desc="Paste a key from Google Cloud Console. It’s checked with YouTube when you save it.">
           <form className="row nowrap" onSubmit={(e) => { e.preventDefault(); saveYouTube(); }}>
-            <input className="input" type="password" value={keys.yt} onChange={(e) => setKeys({ ...keys, yt: e.target.value })}
+            <input className="input" type="password" value={keys.yt} onChange={(e) => { const v = e.target.value; setKeys((k) => ({ ...k, yt: v })); }}
               placeholder="AIza…" disabled={!isDesktop} aria-label="YouTube API key" autoComplete="off" />
             <Button type="submit" variant="primary" busy={busy === "yt"} disabled={!isDesktop || !keys.yt.trim()}>Save and verify</Button>
           </form>
@@ -118,7 +123,7 @@ export function SettingsPage() {
         )}
         <SettingRow title={ch ? "Change channel" : "Add your channel"} desc="Your @handle or channel URL.">
           <form className="row nowrap" onSubmit={(e) => { e.preventDefault(); connectChannel(keys.channel); }}>
-            <input className="input" placeholder="@handle or channel URL" value={keys.channel} onChange={(e) => setKeys({ ...keys, channel: e.target.value })} aria-label="Channel" />
+            <input className="input" placeholder="@handle or channel URL" value={keys.channel} onChange={(e) => { const v = e.target.value; setKeys((k) => ({ ...k, channel: v })); }} aria-label="Channel" />
             <Button type="submit" busy={busy === "channel" && !!keys.channel} disabled={!keys.channel.trim()}>{ch ? "Change" : "Add channel"}</Button>
           </form>
         </SettingRow>
@@ -140,7 +145,7 @@ export function SettingsPage() {
           <input className="input" placeholder="….apps.googleusercontent.com" {...field("google_client_id")} disabled={!isDesktop} aria-label="OAuth client ID" autoComplete="off" />
         </SettingRow>
         <SettingRow title="Client secret" desc={s.google_client_secret_hint ? `Saved, ends in ${s.google_client_secret_hint}. Enter a new one to replace it.` : "Shown next to the client ID in Google Cloud Console."}>
-          <input className="input" type="password" value={keys.gSecret} onChange={(e) => setKeys({ ...keys, gSecret: e.target.value })}
+          <input className="input" type="password" value={keys.gSecret} onChange={(e) => { const v = e.target.value; setKeys((k) => ({ ...k, gSecret: v })); }}
             placeholder="GOCSPX-…" disabled={!isDesktop} aria-label="Client secret" autoComplete="off" />
         </SettingRow>
         <SettingRow title="Save the client" desc="Save the ID and secret, then connect.">
@@ -197,13 +202,29 @@ export function SettingsPage() {
         </SettingRow>
       </SettingsGroup>
 
+      <SettingsGroup id="s-reddit" title="Reddit" desc="Optional. Reddit blocks many apps that read it without signing in. A free Reddit app ID gives NicheRadar reliable, read-only access to public threads. It doesn’t sign in to your account or post anything.">
+        <SettingRow title="Reddit app ID" desc={s.reddit_client_id ? <Status tone="ok">Saved</Status> : "Not added. NicheRadar reads Reddit’s public pages, which Reddit sometimes blocks."}>
+          <form className="row nowrap" onSubmit={async (e) => { e.preventDefault(); await save({ reddit_client_id: form.reddit_client_id ?? "" }, form.reddit_client_id ? "Reddit app ID saved" : "Reddit app ID removed"); }}>
+            <input className="input" placeholder="e.g. a1B2c3D4e5F6g7" {...field("reddit_client_id")} aria-label="Reddit app ID" autoComplete="off" />
+            <Button type="submit" disabled={(form.reddit_client_id ?? "") === s.reddit_client_id}>Save</Button>
+          </form>
+        </SettingRow>
+        <HowTo summary="How to get a Reddit app ID (2 minutes)">
+          <li>Sign in to Reddit and open {LINK("https://www.reddit.com/prefs/apps", "reddit.com/prefs/apps")}.</li>
+          <li>Choose <b>create another app</b> (or <b>create an app</b>).</li>
+          <li>Enter a name such as NicheRadar and choose <b>installed app</b>. This type has no secret.</li>
+          <li>For redirect uri, enter <code>http://localhost:8080</code>. NicheRadar doesn’t use it, but Reddit requires one.</li>
+          <li>Choose <b>create app</b>, then copy the ID shown under the app’s name and paste it here.</li>
+        </HowTo>
+      </SettingsGroup>
+
       <SettingsGroup id="s-ai" title="AI assistant" desc={<>Optional. Claude suggests angles, writes metadata and plans retention from your research. <b>With a Claude plan</b> (Pro, Max or Team) you don’t need a key: choose <i>Copy for Claude.ai</i> on any report or in the Upload optimizer and paste it into Claude. A key shows the results inside NicheRadar instead; the API is billed to your Anthropic account, separately from Claude plans.</>}>
         <SettingRow title="Anthropic API key" desc={s.anthropic_api_key_hint ? <Status tone="ok">Saved, ends in {s.anthropic_api_key_hint}</Status> : <span>Create a key in the {LINK("https://console.anthropic.com/", "Anthropic Console")}.</span>}>
           {s.anthropic_api_key_hint && <Button size="sm" variant="ghost" className="danger" onClick={() => forget("anthropic_api_key", "Anthropic API key removed")}>Remove</Button>}
         </SettingRow>
         <SettingRow title={s.anthropic_api_key_hint ? "Replace the key" : "Add a key"} desc="Stored encrypted on this computer.">
-          <form className="row nowrap" onSubmit={async (e) => { e.preventDefault(); if (keys.ai.trim() && await save({ anthropic_api_key: keys.ai }, "Anthropic API key saved")) setKeys({ ...keys, ai: "" }); }}>
-            <input className="input" type="password" value={keys.ai} onChange={(e) => setKeys({ ...keys, ai: e.target.value })}
+          <form className="row nowrap" onSubmit={async (e) => { e.preventDefault(); if (keys.ai.trim() && await save({ anthropic_api_key: keys.ai }, "Anthropic API key saved")) setKeys((k) => ({ ...k, ai: "" })); }}>
+            <input className="input" type="password" value={keys.ai} onChange={(e) => { const v = e.target.value; setKeys((k) => ({ ...k, ai: v })); }}
               placeholder="sk-ant-…" disabled={!isDesktop} aria-label="Anthropic API key" autoComplete="off" />
             <Button type="submit" disabled={!isDesktop || !keys.ai.trim()}>Save</Button>
           </form>

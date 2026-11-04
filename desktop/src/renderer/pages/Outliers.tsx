@@ -27,14 +27,14 @@ export function OutliersPage({ route }: { route: Route }) {
       <Card className="mb">
         <form className="row" autoComplete="off" onSubmit={(e) => { e.preventDefault(); run(); }}>
           <input className="input grow" style={{ minWidth: 220 }} placeholder="Topic or niche, such as budget travel" required value={form.keyword} aria-label="Topic"
-            onChange={(e) => setForm({ ...form, keyword: e.target.value })} />
-          <select className="select" value={form.days} onChange={(e) => setForm({ ...form, days: +e.target.value })} aria-label="Uploaded within">
+            onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, keyword: v })); }} />
+          <select className="select" value={form.days} onChange={(e) => { const v = +e.target.value; setForm((f) => ({ ...f, days: v })); }} aria-label="Uploaded within">
             {[[7, "Last 7 days"], [30, "Last 30 days"], [90, "Last 90 days"], [365, "Last year"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
           <label className="row secondary" style={{ gap: 6 }}>Up to
-            <input className="input" type="number" min={100} step={1000} style={{ width: 110 }} value={form.max_subs || ""} aria-label="Maximum subscribers"
-              onChange={(e) => setForm({ ...form, max_subs: +e.target.value })} />subscribers</label>
-          <select className="select" value={form.format} onChange={(e) => setForm({ ...form, format: e.target.value })} aria-label="Format">
+            <input className="input" type="number" min={100} step="any" style={{ width: 110 }} value={form.max_subs || ""} aria-label="Maximum subscribers"
+              onChange={(e) => { const v = +e.target.value; setForm((f) => ({ ...f, max_subs: v })); }} />subscribers</label>
+          <select className="select" value={form.format} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, format: v })); }} aria-label="Format">
             <option value="any">Any format</option><option value="long">Long-form</option><option value="short">Shorts</option>
           </select>
           <Button type="submit" variant="primary" busy={state.loading}>Find outliers</Button>
