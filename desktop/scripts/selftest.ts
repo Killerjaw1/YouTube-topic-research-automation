@@ -16,6 +16,7 @@ import { MemoryPersist, Store } from "../src/core/store";
 import { DEFAULT_SETTINGS, type VideoRow } from "../src/core/types";
 import { hash, quartiles, quotaDay } from "../src/core/util";
 import { parseDuration } from "../src/core/youtube";
+import { groupSeries, holdAt, openingAt, subjectTerms } from "../src/core/series";
 import { FilePersist } from "../src/main/persist";
 
 let passed = 0, failed = 0;
@@ -268,6 +269,32 @@ async function main() {
     const tips = insights(ov);
     assert.ok(tips.some((t) => t.text.includes("Shorts feed")));
     assert.ok(!tips.some((t) => /end screen|Suggested videos/i.test(t.text)), "no end-screen or Suggested tips for Shorts");
+  });
+  await test("Series: videos grouped by shared subject, with verdicts and format ideas", async () => {
+    assert.deepEqual(subjectTerms("Why Pac-Man's Ghosts Each Move Differently").slice(0, 3), ["pac", "pac man", "man"]);
+    assert.ok(!subjectTerms("Why Most Jellyfish Die But This One Doesn't").some((t) => t.includes("doesn")), "contractions are not subjects");
+    const v = (title: string, views: number, avp = 80, dur = 50) =>
+      ({ video: title, title, thumbnail: "", views, averageViewPercentage: avp, averageViewDuration: 40, subscribersGained: 5, duration_s: dur, published_at: null });
+    const r = groupSeries([v("Why Pac-Man's Ghosts Move Differently", 39000), v("What Happens When Pac-Man Hits Level 256", 6000),
+      v("Minecraft Is 17 Years Old", 7700), v("Minecraft's Far Lands Bug", 5100, 45), v("The Stack Limit Minecraft Didn't Need", 2900),
+      v("Why Canada Has Weird Lake Names", 32000), v("Lightning Strikes Up", 3500), v("Why Crows Hold Grudges", 3800)]);
+    const pac = r.series.find((s) => s.keyword === "pac man");
+    assert.ok(pac && pac.name === "Pac-Man" && pac.videos.length === 2 && pac.verdict === "more", "Pac-Man is a strong series");
+    assert.equal(r.series.find((s) => s.keyword === "minecraft")?.videos.length, 3);
+    assert.equal(r.other.videos, 3);
+    assert.ok(r.ideas.some((i) => i.format === "long" && i.series === "Pac-Man"), "a strong Shorts series becomes a long-form idea");
+    const demo = await engine.analyticsSeries(true);
+    assert.ok(demo.demo && demo.series.length >= 3 && demo.ideas.some((i) => i.format === "short"), "long-form series give Shorts ideas");
+  });
+  await test("Openings: hold read off the retention curve at 3 s or 30 s", async () => {
+    const pts = [{ elapsedVideoTimeRatio: 0, audienceWatchRatio: 1 }, { elapsedVideoTimeRatio: 0.1, audienceWatchRatio: 0.7 }, { elapsedVideoTimeRatio: 1, audienceWatchRatio: 0.4 }];
+    assert.equal(openingAt(50), 3);
+    assert.equal(openingAt(600), 30);
+    assert.equal(holdAt(pts, 60, 3), 0.85, "3 s into a 60 s video is halfway to the 10% point");
+    assert.equal(holdAt([], 60, 3), null);
+    const o = await engine.analyticsOpenings(true);
+    assert.ok(o.openings.length >= 10 && o.openings[0].hold >= o.openings[o.openings.length - 1].hold, "sorted best first");
+    assert.ok(o.insights.some((i) => i.text.startsWith("Your strongest openings")));
   });
   await test("Retention curve: weak hook and steep drop detected", () => {
     const pts = Array.from({ length: 101 }, (_, i) => ({ elapsedVideoTimeRatio: i / 100, audienceWatchRatio: i < 10 ? 1 - i * 0.06 : i === 50 ? 0.2 : 0.35, relativeRetentionPerformance: 0.3 }));

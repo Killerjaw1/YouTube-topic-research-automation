@@ -7,9 +7,10 @@
  * Scopes are read-only: yt-analytics.readonly and youtube.readonly.
  */
 
+import { type ChannelVideo, groupSeries, holdAt, type Opening, openingAt, openingInsights, type OpeningsReport, type SeriesReport } from "./series";
 import type { Store } from "./store";
 import { UserError } from "./types";
-import { addDays, isoDate, mean, median, rng } from "./util";
+import { addDays, clamp, isoDate, mean, median, rng } from "./util";
 import { parseDuration } from "./youtube";
 
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -209,6 +210,44 @@ export class Analytics {
     return ov;
   }
 
+  /** Your videos from the last `days` days with their stats, most viewed first (up to 200). */
+  async channelVideos(days = 365): Promise<{ start: string; end: string; videos: ChannelVideo[] }> {
+    const end = addDays(new Date(), -1), start = addDays(end, -(days - 1));
+    const rows = await this.report(start, end, "views,averageViewDuration,averageViewPercentage,subscribersGained", { dimensions: "video", sort: "-views", maxResults: 200 });
+    const meta = rows.length ? await this.videoMeta(rows.map((r) => r.video)) : new Map();
+    const videos = rows.map((r) => {
+      const m = meta.get(r.video);
+      return {
+        video: r.video, title: m?.snippet?.title ?? r.video, thumbnail: m?.snippet?.thumbnails?.medium?.url ?? "", views: r.views ?? 0,
+        averageViewPercentage: r.averageViewPercentage ?? 0, averageViewDuration: r.averageViewDuration ?? 0, subscribersGained: r.subscribersGained ?? 0,
+        duration_s: parseDuration(m?.contentDetails?.duration), published_at: m?.snippet?.publishedAt ?? null,
+      };
+    });
+    return { start: isoDate(start), end: isoDate(end), videos };
+  }
+
+  async series(days = 365): Promise<SeriesReport> {
+    const { start, end, videos } = await this.channelVideos(days);
+    return { start, end, ...groupSeries(videos), demo: false };
+  }
+
+  /** Opening hold for your most-viewed videos (one retention request each). */
+  async openings(limit = 12): Promise<OpeningsReport> {
+    const { videos } = await this.channelVideos(365);
+    const pick = videos.filter((v) => v.duration_s > 0).slice(0, limit);
+    const openings: Opening[] = [];
+    for (const v of pick) {
+      try {
+        const { points } = await this.retention(v.video);
+        const at = openingAt(v.duration_s), hold = holdAt(points, v.duration_s, at);
+        if (hold != null) openings.push({ video: v.video, title: v.title, thumbnail: v.thumbnail, views: v.views, duration_s: v.duration_s, at_s: at, hold });
+      } catch (e) {
+        if (e instanceof NotConnected) throw e;
+      }
+    }
+    return { openings: openings.sort((a, b) => b.hold - a.hold), median_hold: median(openings.map((o) => o.hold)), insights: openingInsights(openings), demo: false };
+  }
+
   async retention(videoId: string) {
     const end = addDays(new Date(), -1);
     const rows = await this.report(addDays(end, -365), end, "audienceWatchRatio,relativeRetentionPerformance", {
@@ -322,6 +361,37 @@ export function demoOverview(days = 28): Overview {
     daily, videos, traffic, ctr: { impressions: views * 14, ctr: 0.051 }, channel: { title: "Demo Kitchen", subs: 1240, thumb: "" }, demo: true, insights: [] };
   ov.insights = insights(ov);
   return ov;
+}
+
+/** A sample catalog with clear series, for the browser preview and for channels without Analytics. */
+export function demoChannelVideos(): ChannelVideo[] {
+  const r = rng("catalog");
+  const rows: [string, number, number, number][] = [ // title, views, % viewed, seconds
+    ["Air fryer chicken that actually crisps", 48200, 81, 42], ["Why air fryer fries go soggy", 31900, 78, 38], ["The air fryer setting nobody uses", 22400, 74, 44],
+    ["Air fryer vs oven: the honest test", 9100, 52, 610], ["Meal prep for one person, the honest guide", 7400, 46, 720], ["5 meal prep mistakes beginners make", 6800, 49, 540],
+    ["Meal prep that lasts 5 days", 5200, 44, 660], ["Why rice goes hard in the fridge", 12600, 83, 35], ["Rice cooker tricks restaurants use", 4100, 71, 47],
+    ["Cheap high protein lunches under $3", 3900, 41, 480], ["High protein snacks that aren't bars", 2700, 68, 40], ["Freezer burn, explained in 40 seconds", 3300, 79, 41],
+    ["What I eat in a week on $40", 2200, 38, 780], ["My fridge organization system", 1500, 63, 52], ["Batch cooking for busy students", 1200, 35, 690],
+  ];
+  return rows.map(([title, views, avp, dur], i) => ({
+    video: `demo${i}`, title, thumbnail: "", views, averageViewPercentage: avp, averageViewDuration: Math.round((dur * avp) / 100),
+    subscribersGained: Math.round(views * (dur > 180 ? 0.009 : 0.0012) * r.uniform(0.7, 1.3)), duration_s: dur, published_at: null,
+  }));
+}
+
+export function demoSeries(): SeriesReport {
+  const end = addDays(new Date(), -1);
+  return { start: isoDate(addDays(end, -364)), end: isoDate(end), ...groupSeries(demoChannelVideos()), demo: true };
+}
+
+export function demoOpenings(): OpeningsReport {
+  const openings: Opening[] = demoChannelVideos().slice(0, 12).map((v) => {
+    const at = openingAt(v.duration_s);
+    const hold = holdAt(demoRetention(v.video).points, v.duration_s, at) ?? 0;
+    const tweak = rng("hook", v.video).uniform(-0.12, 0.08); // spread the sample so the comparison shows something
+    return { video: v.video, title: v.title, thumbnail: "", views: v.views, duration_s: v.duration_s, at_s: at, hold: Math.round(clamp(hold + tweak, 0.3, 1) * 1000) / 1000 };
+  }).sort((a, b) => b.hold - a.hold);
+  return { openings, median_hold: median(openings.map((o) => o.hold)), insights: openingInsights(openings), demo: true };
 }
 
 export function demoRetention(videoId: string) {

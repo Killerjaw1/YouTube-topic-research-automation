@@ -5,6 +5,7 @@ import { BarChart, RetentionChart } from "../components/charts";
 import { Banner, Button, Card, DetailPanel, Facts, Segmented } from "../components/kit";
 import { Empty, go, Loading, PageHead, Reasons, type Route, Thumb, useApp } from "../components/ui";
 import { fmt, fmtDur } from "../format";
+import { OpeningsSection, SeriesSection } from "./AnalyticsSeries";
 
 export function useConnectAnalytics() {
   const { toast, fail, refresh } = useApp();
@@ -116,6 +117,8 @@ export function AnalyticsPage({ route }: { route: Route }) {
           </div>
         </Card>
       </div>
+      <SeriesSection demo={ov.demo} />
+      <OpeningsSection demo={ov.demo} />
     </>
   );
 }

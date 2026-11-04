@@ -3,7 +3,7 @@
  * (real YouTube data) and, for `npm run web`, directly in the browser on demo data.
  */
 
-import { Analytics, demoOverview, demoRetention } from "./analytics";
+import { Analytics, demoOpenings, demoOverview, demoRetention, demoSeries } from "./analytics";
 import { DemoYouTube, demoReddit, demoSuggestions } from "./demo";
 import { checkDraft, playbook, type Draft } from "./optimize";
 import { analyze, effectiveSmallMax, enrich, findOutliers, isBreakout, sizeClass, titleWords } from "./scoring";
@@ -335,6 +335,18 @@ export class Engine {
     return this.analytics.retention(videoId);
   }
 
+  /** Your videos grouped into series over the last year, with cross-format ideas. */
+  async analyticsSeries(demo = false) {
+    if (demo || !this.opts.desktop || !this.analytics.connected()) return demoSeries();
+    return this.analytics.series(365);
+  }
+
+  /** How well the openings of your most-viewed videos hold viewers. */
+  async analyticsOpenings(demo = false) {
+    if (demo || !this.opts.desktop || !this.analytics.connected()) return demoOpenings();
+    return this.analytics.openings(12);
+  }
+
   async analyticsDisconnect() { await this.analytics.disconnect(); return { ok: true }; }
 
   // -------------------------------------------------------------------- scans
@@ -373,7 +385,7 @@ export class Engine {
 export const ENGINE_METHODS = [
   "status", "getSettings", "saveSettings", "forgetSecret", "testYouTube", "clearCache", "suggest", "analyze", "discover", "outliers",
   "categories", "trending", "reddit", "connectChannel", "forgetChannel", "aiAngles", "aiMetadata", "optimizeCheck", "analyticsStatus",
-  "analyticsOverview", "analyticsRetention", "analyticsDisconnect", "listScans", "getScan", "deleteScan", "scanCsv", "listIdeas",
+  "analyticsOverview", "analyticsRetention", "analyticsSeries", "analyticsOpenings", "analyticsDisconnect", "listScans", "getScan", "deleteScan", "scanCsv", "listIdeas",
   "addIdea", "updateIdea", "deleteIdea", "ideasCsv", "listTracked", "track", "untrack", "refreshTracked",
 ] as const;
 export type EngineMethod = (typeof ENGINE_METHODS)[number];
