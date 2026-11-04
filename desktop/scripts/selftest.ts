@@ -19,6 +19,7 @@ import { parseDuration } from "../src/core/youtube";
 import { groupSeries, holdAt, openingAt, subjectTerms } from "../src/core/series";
 import { postsFromFeed, redditTop } from "../src/core/sources";
 import { channelFeed, collabCandidates } from "../src/core/competitors";
+import { applyTemplate, titleTestInsights } from "../src/core/uploads";
 import { earlyHits, goalProgress, rhythm, weekdayStats, weekKey } from "../src/core/planner";
 import { extractQuestions, isRound, parseOnThisDay, risingArticles, similarUploads } from "../src/core/ideas";
 import { editNotes, etaRolling, lengthReport, partnerProgress, subscriberDrivers } from "../src/core/growth";
@@ -369,6 +370,30 @@ async function main() {
     assert.ok(ws.demo && ws.views > 0 && ws.planned.some((p) => p.title === "Pac-Man 46th anniversary"));
     assert.equal(await engine.summaryIfDue(), null, "no notification without YouTube Analytics");
     engine.deleteIdea(idea.id);
+  });
+  await test("Upload tools: templates, Test & Compare log insights, thumbnail context", () => {
+    const t = { id: "t", name: "Retro game bugs", description: "More strange stories about {keyword}.", tags: "retro games, Game History", hashtags: "retrogaming #gaminghistory", pinned: "Which game next after “{title}”?", updated: 0 };
+    const r = applyTemplate(t, { title: "Pac-Man level 256", keyword: "pac man", description: "Level 256 breaks the game.", tags: "pac man, retro games" });
+    assert.equal(r.description, "Level 256 breaks the game.\n\nMore strange stories about pac man.\n\n#retrogaming #gaminghistory");
+    assert.equal(r.tags, "pac man, retro games, game history", "tags merged without duplicates");
+    assert.equal(r.pinned, "Which game next after “Pac-Man level 256”?");
+    const log = (options: string[], winner: number) => ({ id: String(Math.random()), date: "2026-11-01", video: "", kind: "title" as const, options, winner, share: "", notes: "", created: 0 });
+    const ins = titleTestInsights([log(["Why Pac-Man's ghosts move differently?", "Pac-Man ghost behaviour"], 0), log(["Is lightning dangerous?", "Lightning facts"], 0),
+      log(["Crows remember faces", "Do crows remember faces?"], 0), log(["Same", "Same too"], -1)]);
+    const q = ins.find((x) => x.label === "a question")!;
+    assert.deepEqual([q.wins, q.tests], [2, 3], "questions won 2 of the 3 tests where only one title asked");
+    assert.equal(engine.saveTemplate({ name: "Retro game bugs", description: "x" }).length, 1);
+    assert.throws(() => engine.saveTemplate({ name: " " }), /Give the template a name/);
+    const tpl = engine.listTemplates()[0];
+    assert.ok(engine.applyTemplate(tpl.id, { title: "", keyword: "", description: "", tags: "" }).description === "x");
+    assert.equal(engine.deleteTemplate(tpl.id).length, 0);
+    const tl = engine.saveTest({ options: ["Why does lightning go up?", "Lightning goes up"], winner: 0, share: "56%" });
+    assert.equal(tl.tests.length, 1);
+    assert.throws(() => engine.saveTest({ options: ["only one"] }), /at least two/);
+    engine.deleteTest(tl.tests[0].id);
+    const ctx = engine.thumbnailContext(report.keyword);
+    assert.ok(ctx && ctx.videos.length === 8 && ctx.keyword === report.keyword);
+    assert.equal(engine.thumbnailContext("never analyzed topic"), null);
   });
   await test("Scans: list, CSV, delete", () => {
     const scans = engine.listScans();

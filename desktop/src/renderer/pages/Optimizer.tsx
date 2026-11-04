@@ -3,7 +3,8 @@ import type { AIMetadata, DraftCheck, Playbook, RetentionPlan } from "../../core
 import { call } from "../api";
 import { factCheckDialog, scriptDialog, translateDialog } from "../components/ClaudeHelpers";
 import { Button, Card, Dialog, Menu, StateCard, Tag } from "../components/kit";
-import { Empty, Loading, PageHead, Reasons, type Route, ScorePill, useApp, useCopyForClaude } from "../components/ui";
+import { copyText, Empty, go, Loading, PageHead, Reasons, type Route, ScorePill, useApp, useCopyForClaude } from "../components/ui";
+import { TemplatesTab, TestLogTab, ThumbnailTab } from "./UploadTools";
 import { store } from "../format";
 import { MetadataBlock } from "./Analyze";
 
@@ -13,8 +14,11 @@ interface CheckResult { score: number; checks: DraftCheck[]; playbook: Playbook 
 /** Check status → list item style (pass is good, fail is bad, warn is a warning, info is a tip). */
 const KIND: Record<DraftCheck["status"], "good" | "bad" | "warn" | "info"> = { pass: "good", fail: "bad", warn: "warn", info: "info" };
 
+const TABS: [string, string][] = [["draft", "Draft check"], ["thumbnail", "Thumbnail preview"], ["templates", "Templates"], ["tests", "Test log"]];
+
 export function OptimizerPage({ route }: { route: Route }) {
-  const { status, fail, modal } = useApp();
+  const { status, fail, modal, toast } = useApp();
+  const tab = TABS.some(([id]) => id === route.params.get("tab")) ? route.params.get("tab")! : "draft";
   const scanId = Number(route.params.get("scan")) || null;
   const saved = store<DraftForm>("draft");
   const [f, setF] = useState<DraftForm>({
@@ -60,6 +64,20 @@ export function OptimizerPage({ route }: { route: Route }) {
     try { setAI({ data: await call("aiMetadata", draft()) }); } catch (e) { setAI({}); fail(e, "The draft couldn’t be rewritten"); }
   };
 
+  // Templates: fill description and tags from a series template, and copy its pinned comment.
+  const [templates, setTemplates] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => { call("listTemplates").then(setTemplates).catch(() => undefined); }, [tab]);
+  const applyTpl = async (id: string) => {
+    try {
+      const r = await call("applyTemplate", id, { title: f.title, keyword: f.keyword, description: f.description, tags: f.tags });
+      const next = { ...f, description: r.description, tags: r.tags };
+      setF(next); store("draft", next);
+      if (r.pinned) await copyText(r.pinned);
+      toast("Template applied", "ok", r.pinned ? "Description and tags filled in. The pinned comment is copied, ready to paste after you upload." : "Description and tags filled in.");
+      if (tab !== "draft") go("#/optimizer");
+    } catch (e) { fail(e, "The template wasn’t applied"); }
+  };
+
   const groups = result ? [...new Set(result.checks.map((c) => c.group))] : [];
   const problems = result ? result.checks.filter((c) => c.status === "fail" || c.status === "warn").length : 0;
   const summary = result && (result.score >= 85
@@ -77,8 +95,15 @@ export function OptimizerPage({ route }: { route: Route }) {
           { label: "Fact-check a script…", icon: "shield", onSelect: () => factCheckDialog(modal, f.keyword || f.title) },
         ]} />
         <Button icon="wand" busy={ai.loading} onClick={rewrite}>Rewrite with Claude</Button>
-        <Button variant="primary" icon="check" onClick={() => check()}>Check draft</Button>
+        {tab === "draft" && <Button variant="primary" icon="check" onClick={() => check()}>Check draft</Button>}
       </PageHead>
+      <div className="tabs" role="tablist" aria-label="Upload tools">
+        {TABS.map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} onClick={() => go(id === "draft" ? "#/optimizer" : `#/optimizer?tab=${id}`)}>{label}</button>)}
+      </div>
+      {tab === "thumbnail" ? <ThumbnailTab draftTitle={f.title} keyword={f.keyword} />
+        : tab === "templates" ? <TemplatesTab onUse={(t) => applyTpl(t.id)} />
+        : tab === "tests" ? <TestLogTab draftTitle={f.title} />
+        : <>
       <div className="grid g-report">
         <Card>
           <form className="stack" autoComplete="off" onSubmit={(e) => { e.preventDefault(); check(); }}>
@@ -91,7 +116,11 @@ export function OptimizerPage({ route }: { route: Route }) {
               <input className="input" maxLength={100} value={f.title} onChange={set("title")} placeholder="Your draft title" /></label>
             <label className="field">Description<textarea className="input" rows={9} value={f.description} onChange={set("description")} placeholder="Your draft description" /></label>
             <label className="field"><span>Tags <span className="hint">separate with commas</span></span><input className="input" value={f.tags} onChange={set("tags")} /></label>
-            <p className="secondary" style={{ margin: 0 }}>Your draft is kept on this computer until you change it.</p>
+            <div className="row between">
+              <p className="secondary" style={{ margin: 0 }}>Your draft is kept on this computer until you change it.</p>
+              {templates.length > 0 && <Menu label="Apply a template" text="Apply template" icon="article" size="sm"
+                items={templates.map((t) => ({ label: t.name, onSelect: () => applyTpl(t.id) }))} />}
+            </div>
           </form>
         </Card>
         <div className="stack">
@@ -130,6 +159,7 @@ export function OptimizerPage({ route }: { route: Route }) {
           <MetadataBlock md={ai.data.metadata} plan={ai.data.retention_plan} />
         </Card>
       )}
+      </>}
     </>
   );
 }

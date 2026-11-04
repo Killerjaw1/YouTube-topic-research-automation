@@ -6,6 +6,7 @@
 import { Analytics, demoAudience, demoChannelVideos, demoGrowth, demoOpenings, demoOverview, demoRetention, demoSearchTerms, demoSeries } from "./analytics";
 import { channelFeed, type CollabChannel, collabCandidates, type Competitor, type CompetitorSummary, type FeedVideo, summarize } from "./competitors";
 import { lengthReport, type SavedOpening, subscriberDrivers } from "./growth";
+import { applyTemplate, type Template, type TestEntry, titleTestInsights, type ThumbContext } from "./uploads";
 import { type Current, earlyHits, type EarlyHit, type Goal, type GoalMetric, goalProgress, GOAL_LABEL, rhythm, weekdayStats, weekKey, type WeeklySummary } from "./planner";
 import { type CommentText, type DayEvent, demoDayEvents, demoRising, extractQuestions, onThisDay, type RisingArticle, risingArticles, similarUploads, type SimilarUpload, type ViewerQuestion, wikiTop } from "./ideas";
 import { DemoYouTube, demoReddit, demoSuggestions } from "./demo";
@@ -349,6 +350,56 @@ export class Engine {
       const uploads = await this.yt().recentUploads("UU" + mine.id.slice(2), 50);
       return similarUploads(text, uploads.map((v) => ({ title: v.snippet?.title ?? "", video: v.id, views: Number(v.statistics?.viewCount) || 0 })));
     } catch { return []; }
+  }
+
+  // ------------------------------------------------------------- upload tools
+  listTemplates(): Template[] { return this.store.getDoc<Template[]>("templates", []); }
+  saveTemplate(t: Partial<Template> & { name: string }): Template[] {
+    if (!t.name?.trim()) throw new UserError("Give the template a name, such as the series it’s for.");
+    const list = this.listTemplates();
+    const clean: Template = { id: t.id || Date.now().toString(36), name: t.name.trim().slice(0, 80), description: (t.description ?? "").slice(0, 5000),
+      tags: (t.tags ?? "").slice(0, 500), hashtags: (t.hashtags ?? "").slice(0, 200), pinned: (t.pinned ?? "").slice(0, 1000), updated: Date.now() / 1000 };
+    const i = list.findIndex((x) => x.id === clean.id);
+    if (i >= 0) list[i] = clean; else list.push(clean);
+    this.store.setDoc("templates", list.slice(-50));
+    return this.listTemplates();
+  }
+  deleteTemplate(id: string): Template[] {
+    this.store.setDoc("templates", this.listTemplates().filter((t) => t.id !== id));
+    return this.listTemplates();
+  }
+  /** A template applied to a draft: description and tags merged, pinned comment filled in. */
+  applyTemplate(id: string, d: { title: string; keyword: string; description: string; tags: string }) {
+    const t = this.listTemplates().find((x) => x.id === id);
+    if (!t) throw new UserError("That template was deleted.");
+    return applyTemplate(t, d);
+  }
+
+  listTests(): { tests: TestEntry[]; insights: ReturnType<typeof titleTestInsights> } {
+    const tests = this.store.getDoc<TestEntry[]>("tests", []);
+    return { tests: [...tests].sort((a, b) => b.date.localeCompare(a.date)), insights: titleTestInsights(tests) };
+  }
+  saveTest(t: Partial<TestEntry>) {
+    const options = (t.options ?? []).map((o) => String(o).trim().slice(0, 200)).filter(Boolean).slice(0, 3);
+    if (options.length < 2) throw new UserError("Enter at least two versions that were tested.");
+    const winner = Number.isInteger(t.winner) && t.winner! >= -1 && t.winner! < options.length ? t.winner! : -1;
+    const entry: TestEntry = { id: t.id || Date.now().toString(36), date: /^\d{4}-\d{2}-\d{2}$/.test(t.date ?? "") ? t.date! : new Date().toISOString().slice(0, 10),
+      video: (t.video ?? "").slice(0, 200), kind: t.kind === "thumbnail" || t.kind === "both" ? t.kind : "title", options, winner,
+      share: (t.share ?? "").slice(0, 40), notes: (t.notes ?? "").slice(0, 1000), created: Date.now() / 1000 };
+    const list = this.store.getDoc<TestEntry[]>("tests", []).filter((x) => x.id !== entry.id);
+    this.store.setDoc("tests", [...list, entry].slice(-300));
+    return this.listTests();
+  }
+  deleteTest(id: string) {
+    this.store.setDoc("tests", this.store.getDoc<TestEntry[]>("tests", []).filter((x) => x.id !== id));
+    return this.listTests();
+  }
+
+  /** The videos that rank for a keyword you've analyzed, to compare a thumbnail against (no quota). */
+  thumbnailContext(keyword: string, scanId?: number | null): ThumbContext | null {
+    const rep = this.reportFor(keyword, scanId);
+    if (!rep) return null;
+    return { keyword: rep.keyword, videos: rep.videos.slice(0, 8).map((v) => ({ title: v.title, channel: v.channel_title, thumbnail: v.thumbnail, views: v.views, age_days: v.age_days })) };
   }
 
   // ------------------------------------------------------------------ planner
@@ -707,6 +758,7 @@ export class Engine {
 export const ENGINE_METHODS = [
   "status", "getSettings", "saveSettings", "forgetSecret", "testYouTube", "clearCache", "suggest", "analyze", "discover", "outliers",
   "categories", "trending", "reddit", "viewerQuestions", "dayEvents", "risingWiki", "alreadyMade",
+  "listTemplates", "saveTemplate", "deleteTemplate", "applyTemplate", "listTests", "saveTest", "deleteTest", "thumbnailContext",
   "plannerStats", "listGoals", "addGoal", "deleteGoal", "goalsProgress", "weeklySummary",
   "listCompetitors", "addCompetitor", "removeCompetitor", "competitorFeed", "findCollaborators", "connectChannel", "forgetChannel", "aiAngles", "aiMetadata", "aiPrompt", "aiDraftPrompt", "aiScriptPrompt", "aiTranslatePrompt", "aiFactCheckPrompt", "optimizeCheck", "analyticsStatus",
   "analyticsOverview", "analyticsRetention", "analyticsSeries", "analyticsOpenings", "analyticsGrowth", "analyticsSearchTerms", "analyticsAudience", "analyticsCatalog",

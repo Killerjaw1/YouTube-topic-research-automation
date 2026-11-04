@@ -12,7 +12,7 @@ import { mean, median, quartiles, round } from "./util";
 
 export const TAG_CHAR_LIMIT = 500; // YouTube's limit for all tags combined
 
-const PATTERNS: [string, string, RegExp][] = [
+export const PATTERNS: [string, string, RegExp][] = [
   ["number", 'a number (“7 mistakes”, “30 days”)', /\d/],
   ["question", "a question", /\?/],
   ["first_person", 'first person (“I tried”, “my”)', /\b(i|i'm|i've|my|me)\b/i],
