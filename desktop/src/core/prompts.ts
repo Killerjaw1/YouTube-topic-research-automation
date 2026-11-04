@@ -77,3 +77,75 @@ const METADATA_LAYOUT = `Answer with these sections, using headings:
 export function claudeAiPrompt(request: string, kind: "angles" | "metadata"): string {
   return [SYSTEM_PROMPT, "", "Research from NicheRadar, my YouTube topic research app:", "", request, "", kind === "angles" ? ANGLES_LAYOUT : METADATA_LAYOUT].join("\n");
 }
+
+// ------------------------------------------------------------- helpers for Claude.ai
+export interface ScriptRequest {
+  topic: string;
+  title?: string;
+  format: "short" | "long";
+  /** Target length in seconds. */
+  seconds?: number;
+  notes?: string;
+}
+
+/** A Shorts (or long-video) script request, with the creator's own best openings as style examples. */
+export function scriptPrompt(r: ScriptRequest, openings: { title: string; line: string; hold: number; at_s: number }[], report: Report | null): string {
+  const short = r.format === "short";
+  const secs = r.seconds ?? (short ? 45 : 600);
+  const examples = openings.filter((o) => o.line.trim()).slice(0, 5);
+  return [
+    `You write scripts for a small YouTube channel that makes curiosity-driven explainer ${short ? "Shorts" : "videos"}.`,
+    "",
+    `Topic: ${r.topic}`,
+    r.title ? `Working title: ${r.title}` : "",
+    `Format: ${short ? `a vertical Short of about ${secs} seconds` : `a long video of about ${Math.round(secs / 60)} minutes`}`,
+    r.notes ? `My notes: ${r.notes}` : "",
+    examples.length ? ["", "Openings that kept the most viewers on my channel (match this style and pace):",
+      ...examples.map((o) => `- "${o.line.trim()}" (from “${o.title}”, ${Math.round(o.hold * 100)}% still watching at ${o.at_s} s)`)].join("\n") : "",
+    report ? ["", "Research on this topic from NicheRadar:", brief(report)].join("\n") : "",
+    "",
+    short
+      ? `Write the script with these sections:
+1. Hook (first 1–2 seconds): state the question or the surprising claim immediately, with what's on screen.
+2. Setup: the one fact the viewer needs.
+3. Payoff: the answer, with the most surprising detail.
+4. Loop ending: a last line that leads naturally back into the first line, so the Short replays smoothly.
+Mark each line with a timestamp and a short on-screen note (visual, text overlay). Keep sentences short and spoken.
+Then give 3 title options under 60 characters, 2–4 words of on-screen text for the first frame, and the related long video this Short could point to.`
+      : `Write the script with these sections:
+1. Hook (first 15 seconds): the question, why it matters, and a promise of the payoff.
+2. Sections with timestamps, each ending in an open loop that carries viewers to the next.
+3. Payoff and a closing line that points to a related video.
+Mark visuals and on-screen text. Then give 3 title options under 60 characters, chapter titles, and 3 thumbnail ideas.`,
+  ].filter((l) => l !== "").join("\n");
+}
+
+export function translatePrompt(d: { title: string; description: string; tags: string }, languages: string[]): string {
+  return [
+    "Translate my YouTube title and description for viewers in other languages. I'll add these in YouTube Studio under Languages, so each viewer sees their own language.",
+    "",
+    `Languages: ${languages.join(", ")}`,
+    "",
+    `Title: ${d.title || "(empty)"}`,
+    `Description:\n${d.description || "(empty)"}`,
+    d.tags ? `Tags (for context only): ${d.tags}` : "",
+    "",
+    "For each language: a natural, idiomatic title under 70 characters (not word for word; keep the curiosity and the keyword people would actually search in that language), then the full description. Keep timestamps, links and hashtags as they are. Add one line noting any phrase that doesn't translate well and what you chose instead.",
+  ].filter((l) => l !== "").join("\n");
+}
+
+export function factCheckPrompt(script: string, topic: string): string {
+  return [
+    "Fact-check this script for my YouTube explainer before I record it. Accuracy matters: viewers correct mistakes in the comments, and a wrong fact costs trust.",
+    "",
+    topic ? `Topic: ${topic}` : "",
+    "Script:",
+    script.trim() || "(paste the script here)",
+    "",
+    `Answer with:
+1. Each factual claim, marked Correct, Needs nuance, Wrong or Can't verify, with a one-line explanation.
+2. For anything not Correct, a corrected line I can say instead, in the same tone and length.
+3. Sources I can check for the key facts (say if you're unsure a source exists, rather than inventing one).
+4. Anything an expert viewer would object to, even if technically true.`,
+  ].filter((l) => l !== "").join("\n");
+}

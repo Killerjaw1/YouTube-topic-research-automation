@@ -7,7 +7,7 @@ import { Analytics, demoAudience, demoChannelVideos, demoGrowth, demoOpenings, d
 import { lengthReport, type SavedOpening, subscriberDrivers } from "./growth";
 import { DemoYouTube, demoReddit, demoSuggestions } from "./demo";
 import { checkDraft, playbook, type Draft } from "./optimize";
-import { anglesRequest, claudeAiPrompt, metadataRequest } from "./prompts";
+import { anglesRequest, claudeAiPrompt, factCheckPrompt, metadataRequest, type ScriptRequest, scriptPrompt, translatePrompt } from "./prompts";
 import { analyze, effectiveSmallMax, enrich, findOutliers, isBreakout, sizeClass, titleWords } from "./scoring";
 import { autocomplete, expand, type Fetcher, redditTop } from "./sources";
 import type { Store } from "./store";
@@ -339,6 +339,23 @@ export class Engine {
     return claudeAiPrompt(metadataRequest(draft, this.reportFor(draft.keyword ?? "", draft.scan_id)), "metadata");
   }
 
+  /** A script request for Claude.ai, using your saved openings as style examples and the topic's research if analyzed. */
+  aiScriptPrompt(r: ScriptRequest & { scan_id?: number | null }): string {
+    if (!r.topic?.trim()) throw new UserError("Enter a topic for the script.");
+    return scriptPrompt(r, this.listSavedOpenings(), this.reportFor(r.topic, r.scan_id));
+  }
+
+  aiTranslatePrompt(d: { title: string; description: string; tags: string }, languages: string[]): string {
+    if (!d.title?.trim() && !d.description?.trim()) throw new UserError("Add a title or description to translate first.");
+    if (!languages.length) throw new UserError("Choose at least one language.");
+    return translatePrompt(d, languages.slice(0, 12));
+  }
+
+  aiFactCheckPrompt(script: string, topic = ""): string {
+    if (!script?.trim()) throw new UserError("Paste your script first.");
+    return factCheckPrompt(script.slice(0, 20000), topic);
+  }
+
   async aiMetadata(draft: Draft & { scan_id?: number | null }) {
     const key = this.aiKey();
     return this.opts.ai!.metadata(key, draft, this.reportFor(draft.keyword ?? "", draft.scan_id));
@@ -475,7 +492,7 @@ export class Engine {
 /** Methods the UI may call over IPC (everything else on Engine stays internal). */
 export const ENGINE_METHODS = [
   "status", "getSettings", "saveSettings", "forgetSecret", "testYouTube", "clearCache", "suggest", "analyze", "discover", "outliers",
-  "categories", "trending", "reddit", "connectChannel", "forgetChannel", "aiAngles", "aiMetadata", "aiPrompt", "aiDraftPrompt", "optimizeCheck", "analyticsStatus",
+  "categories", "trending", "reddit", "connectChannel", "forgetChannel", "aiAngles", "aiMetadata", "aiPrompt", "aiDraftPrompt", "aiScriptPrompt", "aiTranslatePrompt", "aiFactCheckPrompt", "optimizeCheck", "analyticsStatus",
   "analyticsOverview", "analyticsRetention", "analyticsSeries", "analyticsOpenings", "analyticsGrowth", "analyticsSearchTerms", "analyticsAudience", "analyticsCatalog",
   "listSavedOpenings", "saveOpening", "updateSavedOpening", "deleteSavedOpening", "analyticsDisconnect", "listScans", "getScan", "deleteScan", "scanCsv", "listIdeas",
   "addIdea", "updateIdea", "deleteIdea", "ideasCsv", "listTracked", "track", "untrack", "refreshTracked",

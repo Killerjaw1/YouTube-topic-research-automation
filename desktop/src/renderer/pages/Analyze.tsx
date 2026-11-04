@@ -3,6 +3,7 @@ import type { AIAngles, AIMetadata, Focus, Report, RetentionPlan, VideoRow } fro
 import { call, exportPdf, openExternal, saveFile } from "../api";
 import { ScoreRing, Scatter } from "../components/charts";
 import { Icon } from "../components/Icon";
+import { scriptDialog } from "../components/ClaudeHelpers";
 import { ideaModal } from "../components/IdeaModal";
 import { Button, Card, ChipGroup, Dialog, Menu, Segmented, Tag } from "../components/kit";
 import {
@@ -207,6 +208,7 @@ function ReportView({ report: rep }: { report: Report }) {
               ...(rep.scan_id ? [{ label: "Export results as CSV…", icon: "download" as const, onSelect: exportCsv }] : []),
               { label: "Save report as PDF…", icon: "file", onSelect: exportReport },
               ...(rep.scan_id ? [{ label: "Copy for Claude.ai", icon: "copy" as const, onSelect: copyAngles }] : []),
+              { label: "Write a script…", icon: "script", onSelect: () => scriptDialog(modal, { topic: rep.keyword, format: rep.focus === "long" ? "long" : rep.focus === "short" ? "short" : (rec.format === "long" ? "long" : "short"), scan_id: rep.scan_id ?? null }) },
               "sep",
               { label: "Open search on YouTube", icon: "external", onSelect: () => openExternal(`https://www.youtube.com/results?search_query=${encodeURIComponent(rep.keyword)}`) },
             ]} />

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { AIMetadata, DraftCheck, Playbook, RetentionPlan } from "../../core/types";
 import { call } from "../api";
-import { Button, Card, Dialog, StateCard, Tag } from "../components/kit";
+import { factCheckDialog, scriptDialog, translateDialog } from "../components/ClaudeHelpers";
+import { Button, Card, Dialog, Menu, StateCard, Tag } from "../components/kit";
 import { Empty, Loading, PageHead, Reasons, type Route, ScorePill, useApp, useCopyForClaude } from "../components/ui";
 import { store } from "../format";
 import { MetadataBlock } from "./Analyze";
@@ -70,6 +71,11 @@ export function OptimizerPage({ route }: { route: Route }) {
   return (
     <>
       <PageHead title="Upload optimizer" desc={`Check a draft title, description and tags against what helps click-through and watch time${f.keyword ? ", and against what ranks for your topic" : ""}.`}>
+        <Menu label="More with Claude" text="Claude.ai tools" icon="sparkle" items={[
+          { label: "Write a script…", icon: "script", onSelect: () => scriptDialog(modal, { topic: f.keyword || f.title, title: f.title, format: f.format, scan_id: scanId }) },
+          { label: "Translate title and description…", icon: "translate", onSelect: () => translateDialog(modal, { title: f.title, description: f.description, tags: f.tags }) },
+          { label: "Fact-check a script…", icon: "shield", onSelect: () => factCheckDialog(modal, f.keyword || f.title) },
+        ]} />
         <Button icon="wand" busy={ai.loading} onClick={rewrite}>Rewrite with Claude</Button>
         <Button variant="primary" icon="check" onClick={() => check()}>Check draft</Button>
       </PageHead>

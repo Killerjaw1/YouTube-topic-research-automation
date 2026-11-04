@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { type Idea, IDEA_STATUSES } from "../../core/types";
 import { call, saveFile } from "../api";
 import { draftOf, IdeaFields, type IdeaDraft, ideaModal, STATUS_META } from "../components/IdeaModal";
+import { scriptDialog } from "../components/ClaudeHelpers";
 import { Button, DetailPanel, Dialog, Facts } from "../components/kit";
 import { FormatBadge, PageHead, ScorePill, useApp } from "../components/ui";
 import { ago } from "../format";
@@ -29,6 +30,7 @@ function IdeaEditor({ idea, onSaved, onClose }: { idea: Idea; onSaved(): void; o
       footer={<>
         <Button variant="primary" busy={busy} disabled={!dirty} onClick={save}>Save changes</Button>
         {idea.scan_id && <Button href={`#/report/${idea.scan_id}`}>Open report</Button>}
+        <Button icon="script" onClick={() => scriptDialog(modal, { topic: f.keyword || f.title, title: f.title, format: f.format === "long" ? "long" : "short", scan_id: idea.scan_id ?? null, notes: f.notes })}>Write script…</Button>
         <Button variant="ghost" className="danger" style={{ marginLeft: "auto" }} onClick={confirmDelete}>Delete…</Button>
       </>}>
       {idea.score != null && <div className="row"><ScorePill score={idea.score} /><span className="t2">{idea.verdict}</span></div>}

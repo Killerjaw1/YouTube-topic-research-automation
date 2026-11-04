@@ -174,7 +174,8 @@ export function Thumbnail({ src, title, name, category, large }: { src?: string;
 // ------------------------------------------------------------------- menu
 export type MenuItem = { label: string; icon?: IconName; onSelect(): void; danger?: boolean } | "sep";
 
-export function Menu({ items, label = "More actions", icon = "more", size }: { items: MenuItem[]; label?: string; icon?: IconName; size?: "sm" }) {
+/** A button that opens a list of actions. Icon-only by default; `text` shows a visible label instead. */
+export function Menu({ items, label = "More actions", icon = "more", size, text }: { items: MenuItem[]; label?: string; icon?: IconName; size?: "sm"; text?: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -196,7 +197,9 @@ export function Menu({ items, label = "More actions", icon = "more", size }: { i
   }, [open]);
   return (
     <div className="menu-wrap" ref={ref}>
-      <Button iconOnly icon={icon} label={label} size={size} variant="ghost" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)} />
+      {text
+        ? <Button icon={icon} size={size} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>{text}</Button>
+        : <Button iconOnly icon={icon} label={label} size={size} variant="ghost" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)} />}
       {open && (
         <div className="menu" role="menu">
           {items.map((it, i) => it === "sep" ? <div key={i} className="menu-sep" /> : (

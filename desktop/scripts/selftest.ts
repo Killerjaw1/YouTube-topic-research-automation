@@ -263,6 +263,22 @@ async function main() {
     await assert.rejects(redditTop("gaming", "week", 30, { clientId: "wrong", fetcher: async () => new Response("", { status: 401 }) }), /didn’t accept the app ID/);
     await assert.rejects(redditTop("gaming", "week", 30, { fetcher: async () => new Response("", { status: 429 }) }), /limiting requests/);
   });
+  await test("Claude.ai helpers: script with your openings, translations, fact-check", () => {
+    engine.saveOpening({ video: "v9", title: "Why rice goes hard", hold: 0.92, at_s: 3, line: "Your rice isn’t stale. It’s crystallising." });
+    const sp = engine.aiScriptPrompt({ topic: report.keyword, format: "short", seconds: 40 });
+    assert.ok(sp.includes("a vertical Short of about 40 seconds") && sp.includes("Loop ending"));
+    assert.ok(sp.includes("Your rice isn’t stale. It’s crystallising.") && sp.includes("92% still watching"), "uses the opening library as style examples");
+    assert.ok(sp.includes(`Topic: ${report.keyword}`) && sp.includes("Research on this topic"), "includes the analyzed topic's research");
+    assert.throws(() => engine.aiScriptPrompt({ topic: " ", format: "short" }), /Enter a topic/);
+    const tp = engine.aiTranslatePrompt({ title: "Why lightning goes up", description: "0:00 Intro", tags: "" }, ["Spanish", "Hindi"]);
+    assert.ok(tp.includes("Languages: Spanish, Hindi") && tp.includes("Title: Why lightning goes up") && tp.includes("Keep timestamps"));
+    assert.throws(() => engine.aiTranslatePrompt({ title: "", description: "", tags: "" }, ["Spanish"]), /title or description/);
+    assert.throws(() => engine.aiTranslatePrompt({ title: "x", description: "", tags: "" }, []), /at least one language/);
+    const fp = engine.aiFactCheckPrompt("Lightning strikes the same place twice.", "lightning");
+    assert.ok(fp.includes("Lightning strikes the same place twice.") && fp.includes("Needs nuance") && fp.includes("rather than inventing one"));
+    assert.throws(() => engine.aiFactCheckPrompt("  "), /Paste your script/);
+    engine.deleteSavedOpening(engine.listSavedOpenings()[0].id);
+  });
   await test("Scans: list, CSV, delete", () => {
     const scans = engine.listScans();
     assert.ok(scans.length >= 2);
