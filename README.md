@@ -16,15 +16,15 @@ No accounts and no NicheRadar servers. Your keys and data stay on your computer.
 
 | | |
 |---|---|
-| **Analyze topic** | A 0-100 opportunity score from demand, small-channel breakouts, large-channel dominance and freshness, with findings, a format recommendation, a channel-size vs. views chart and the full results table. Export as CSV or PDF. |
+| **Analyze topic** | A 0-100 opportunity score from demand, small-channel breakouts, large-channel dominance and freshness, with findings, a format recommendation, a channel-size vs. views chart and the full results table. Score against all videos, Shorts only or long-form only (Shorts is the default for channels that mostly post Shorts). Export as CSV or PDF. |
 | **Upload playbook** | Titles, title patterns, a description template with chapters, tags within YouTube's 500-character limit, hashtags, target length, and click-through, watch-time, Shorts and metadata checklists, all derived from the videos that rank for the topic. |
 | **Upload optimizer** | Scores a draft title, description and tags with specific fixes, using topic benchmarks when the keyword has been analyzed. |
-| **Watchlist** | Track topics and re-score them over time, with trend lines and score changes. |
+| **Watchlist** | Track topics and re-score them over time, with trend lines and score changes. Optionally re-scores them once a week by itself and notifies you when a topic improves. |
 | **Compare** | Up to four analyses side by side. |
-| **Discover ideas** | Mines YouTube search suggestions (A–Z, questions, modifiers) around a niche at no quota cost, then batch-scores the phrases you select. Also turns popular Reddit threads into topics. |
+| **Discover ideas** | Mines YouTube search suggestions (A–Z, questions, modifiers) around a niche at no quota cost, then batch-scores the phrases you select. Also turns popular Reddit threads into topics, with one-click subreddits for “why” and “how” questions. |
 | **Outliers** | Recent small-channel videos that earned many times their subscriber count. |
 | **Trending** | YouTube's trending chart by country and category, with small-channel videos highlighted. |
-| **Analytics** | Connect YouTube Analytics (read-only) for views, watch time, average percentage viewed, click-through rate, traffic sources and per-video audience retention, with insights from your own numbers. |
+| **Analytics** | Connect YouTube Analytics (read-only) for views, watch time, average percentage viewed, click-through rate, traffic sources and per-video audience retention, with insights from your own numbers (adapted for Shorts-first channels). **Series** groups your videos by subject and shows which to make more of; **long-form and Shorts ideas** are built from series that already work; **Openings** compares how many viewers stay 3 seconds into a Short or 30 seconds into a long video; **More like this** finds related questions for any video. |
 | **AI assistant** (optional) | With an Anthropic API key, Claude proposes differentiated angles, ready-to-use metadata, thumbnail concepts and a retention plan, and can review a draft. |
 | **Idea board** | A drag-and-drop production pipeline with CSV export. |
 
@@ -37,9 +37,9 @@ system/light/dark themes, automatic updates, and a status bar showing data sourc
 
 ## Install
 
-**`NicheRadar-Setup-1.0.0.exe`** is the Windows installer (Windows 10 and 11). Get it from the repository's
-**Actions** tab (latest *Build* run → *Artifacts* → `NicheRadar-Windows-installer`), or from **Releases** once a
-version is tagged. It isn't code-signed, so SmartScreen may say "Windows protected your PC". Click
+**`NicheRadar-Setup-<version>.exe`** is the Windows installer (Windows 10 and 11). Get the latest from the
+repository's **Releases** page, or from the **Actions** tab (latest *Build* run → *Artifacts* →
+`NicheRadar-Windows-installer`). Installed copies update themselves from Releases. It isn't code-signed, so SmartScreen may say "Windows protected your PC". Click
 *More info → Run anyway*.
 
 On first launch a short setup asks for a YouTube Data API key and your channel. You can skip it and explore with
@@ -50,8 +50,8 @@ sample data; every screen works without a key.
 1. **Get a free YouTube Data API key** (about 3 minutes, no billing needed). In
    [Google Cloud Console](https://console.cloud.google.com/projectcreate) create a project, enable
    [YouTube Data API v3](https://console.cloud.google.com/apis/library/youtube.googleapis.com), then
-   *Credentials → Create credentials → API key*. Paste it into **Settings → YouTube API key** and click *Save*.
-   NicheRadar tests it straight away.
+   *Credentials → Create credentials → API key*. Paste it into **Settings → YouTube data** and click
+   *Save and verify*.
 2. **Connect your channel** under *Settings → Your channel* (your @handle or channel URL). "Small channel" then
    means channels within reach of yours: 25× your subscribers, between 10K and 250K.
 3. **Optional: connect YouTube Analytics** under *Settings → YouTube Analytics* (steps below).
@@ -72,7 +72,8 @@ between your PC and Google:
 4. Under [Clients](https://console.cloud.google.com/auth/clients), choose *Create client → Desktop app*. Paste the
    client ID and secret into NicheRadar and click *Save*.
 5. Click **Connect YouTube Analytics**. Your browser opens Google sign-in. Pick the account that owns your channel
-   and allow read-only access. The browser then says *Connected!* and NicheRadar shows your stats.
+   and allow read-only access. The browser then says *YouTube Analytics connected* and NicheRadar shows your stats. To switch channels,
+   choose *Disconnect*, then connect again and pick the other account or Brand Account.
 
 ## Keyboard shortcuts
 

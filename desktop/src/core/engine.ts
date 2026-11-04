@@ -16,7 +16,7 @@ import {
 import { csv, median, round } from "./util";
 import { publishedAfterDays, YouTubeClient, type YouTubeSource } from "./youtube";
 
-export const VERSION = "1.0.0";
+export const VERSION = "1.1.0";
 
 export interface AIProvider {
   angles(apiKey: string, report: Report, note: string): Promise<AIAngles>;
